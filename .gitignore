@@ -2,7 +2,7 @@
 /models/checkpoints/
 
 # virtual environment
-.maths-mann
+.math-mann/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
