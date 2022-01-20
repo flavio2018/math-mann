@@ -1,4 +1,5 @@
 """Playing around with data"""
+import click
 from codetiming import Timer
 from humanfriendly import format_timespan
 
@@ -10,7 +11,8 @@ from trax.supervised import training
 
 from data_generators import XAndYGenerator
 
-
+@click.command()
+@click.option("--epochs", default=2000, help="Number of epochs.")
 @Timer(text=lambda secs: f"Took {format_timespan(secs)}")
 def main():
     train_stream = XAndYGenerator(
@@ -54,7 +56,7 @@ def main():
                                   training_task,
                                   eval_tasks=[eval_task],
                                   output_dir=ckpt_dir)
-    training_loop.run(2000)
+    training_loop.run(epochs)
 
 
 def find_max_vocab_size(preprocessed_stream):
