@@ -1,79 +1,129 @@
+"""This script contains the implementation of a Dynamic-Neural Turing Machine.
+
+By convention, tensors whose name starts with a 'W' are bidimensional (i.e. matrices), 
+while tensors whose name starts with a 'u' or a 'b' are one-dimensional (i.e. vectors).
+Usually, these parameters are part of linear transformations implementing a multi-input perceptron,
+thereby representing the weights and biases of these operations.
+
+The choice that was made in this implementation is to decouple the external memory of the model
+as a separate PyTorch Module. The full D-NTM model is thus composed of a controller module and a 
+memory module."""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.modules as M
 
+import warnings
+
 
 class DynamicNeuralTuringMachine(nn.Module):
-    def __init__(self, memory):
+    def __init__(self, memory, controller_hidden_state_size, controller_input_size):
+        super(DynamicNeuralTuringMachine, self).__init__()
         self.memory = memory
-        self.controller = M.GRUCell()  # TODO fill params
-        self.controller_hidden_state = torch.zeros()  # TODO fill params
+        self.controller = M.GRUCell(input_size=controller_input_size, hidden_size=controller_hidden_state_size)
+        self.register_buffer("controller_hidden_state", torch.empty(size=(controller_hidden_state_size, 1)))
 
-
-    def forward(self, x):
-        self.memory.address_memory(self.controller_hidden_state)
-        content_vector = self.memory.read(self.controller_hidden_state)  
-        self.controller_hidden_state = self.controller(nn.concat([x, content_vector]), self.controller_hidden_state)  # TODO check op
-        self.memory.update(self.controller_hidden_state, x)  
+    def forward(self, x, num_addressing_steps=1):
+        for __ in range(num_addressing_steps):
+            self.memory.address_memory(self.controller_hidden_state)
+            content_vector = self.memory.read()
+            self.controller_hidden_state = self.controller(torch.cat((x, content_vector), dim=1),
+                                                           self.controller_hidden_state)
+            self.memory.update(self.controller_hidden_state, x)  
         return self.controller_hidden_state  # TODO define output
 
 
 class DynamicNeuralTuringMachineMemory(nn.Module):
-    def __init__(self, n_locations, content_size, address_size):
+    def __init__(self, n_locations, content_size, address_size, controller_input_size):
         """Instantiate the memory.
         n_locations: number of memory locations
-        content_size: size of memory locations"""
+        content_size: size of the content part of memory locations
+        address_size: size of the address part of memory locations"""
+        super(DynamicNeuralTuringMachineMemory, self).__init__()
         
-        self.memory_contents = torch.zeros(size=(n_locations, content_size))
-        self.memory_addresses = torch.zeros(size=(n_locations, address_size), requires_grad=True)
-        
-        # TODO refactor layers into low-level matrices/vectors
-        self.query_mlp= M.linear(in_features=(content_size + address_size), out_features=n_locations, bias=True)
-        self.sharpening_mlp = M.linear(in_features=n_locations, out_features=1, bias=True)
-        self.lru_mlp = M.linear(in_features=n_locations, out_features=1, bias=True)
-        self.erase_mlp = M.linear(in_features=n_locations, out_features=content_size, bias=True)
-        self.candidate_hidden_mlp = M.linear(in_features=n_locations, out_features=content_size, bias=False)
-        self.candidate_input_mlp = M.linear(in_features=n_locations, out_features=content_size, bias=False)
-        self.candidate_alpha_mlp = M.linear(in_features=(n_locations + input_size), out_features=1, bias=True)  # TODO input_size?
+        self.register_buffer("memory_contents", torch.zeros(size=(n_locations, content_size)))
+        self.memory_addresses = nn.Parameter(torch.zeros(size=(n_locations, address_size)), requires_grad=True)
+        self.overall_memory_size = content_size + address_size
+
+        # query vector MLP parameters (W_k, b_k)
+        self.W_query = nn.Parameter(torch.zeros(size=(self.overall_memory_size, n_locations)), requires_grad=True)
+        self.b_query = nn.Parameter(torch.zeros(size=(n_locations, 1)), requires_grad=True)
+
+        # sharpening parameters (u_beta, b_beta)
+        self.u_sharpen = nn.Parameter(torch.zeros(size=(n_locations, 1)), requires_grad=True)
+        self.b_sharpen = nn.Parameter(torch.zeros(size=(n_locations, 1)), requires_grad=True)
+
+        # LRU parameters (u_gamma, b_gamma)
+        self.u_lru = nn.Parameter(torch.zeros(size=(n_locations, 1)), requires_grad=True)
+        self.b_lru = nn.Parameter(torch.zeros(size=(n_locations, 1)), requires_grad=True)
+        self.register_buffer("exp_mov_avg_similarity", torch.zeros(size=(n_locations, 1)))
+
+        # erase parameters (generate e_t)
+        self.W_erase = nn.Parameter(torch.zeros(size=(content_size, n_locations)), requires_grad=True)
+        self.b_erase = nn.Parameter(torch.zeros(size=(n_locations, 1)), requires_grad=True)
+
+        # writing parameters (W_m, W_h, alpha)
+        self.W_content_hidden = nn.Parameter(torch.zeros(size=(content_size, n_locations)), requires_grad=True)
+        self.W_content_input = nn.Parameter(torch.zeros(size=(content_size, n_locations)), requires_grad=True)
+        self.u_content_alpha = nn.Parameter(torch.zeros(size=(n_locations+controller_input_size, 1)), requires_grad=True)
+        self.b_content_alpha = nn.Parameter(torch.zeros(size=(n_locations+controller_input_size, 1)), requires_grad=True)
         
         self.address_vector = None
-    
-    def read(self, controller_hidden_state):
-        return nn.concat(self.memory_addresses, self.memory_contents) @ self.address_vector  # TODO check operation
+        self._init_parameters()
+
+    def read(self):
+        return self._full_memory_view() @ self.address_vector  
 
     def update(self, controller_hidden_state, controller_input):
-        erase_vector = self.erase_mlp(controller_hidden_state)
-        alpha = self.candidate_alpha_mlp(nn.concat(controller_hidden_state, controller_input))
-        candidate_content_vector = F.relu(self.candidate_input_mlp(controller_hidden_state) + alpha * self.candidate_input_mlp(controller_input))
+        erase_vector = self.W_erase @ controller_hidden_state + self.b_erase
+        alpha = self.u_content_alpha @ torch.cat((controller_hidden_state, controller_input), dim=1) + self.b_content_alpha
+        candidate_content_vector = F.relu(self.W_content_hidden @ controller_hidden_state + alpha * self.W_content_input @ controller_input)
+
         for j in range(self.memory_contents.shape[0]):
-            self.memory_contents[j, :] = (1 - self.address_vector[j] * erase_vector) * self.memory_contents[j,:] + self.address_vector[j] * candidate_content_vector
+            self.memory_contents[j, :] = ((1 - self.address_vector[j] * erase_vector) * self.memory_contents[j,:]
+                                          + self.address_vector[j] * candidate_content_vector)
 
     def address_memory(self, controller_hidden_state):
-        query = self.query_mlp(controller_hidden_state)
-        sharpening_beta = F.softplus(self.sharpening_mlp(controller_hidden_state)) + 1
+        query = self.W_query @ controller_hidden_state + self.b_query
+        sharpening_beta = F.softplus(self.u_sharpen @ controller_hidden_state + self.b_sharpen) + 1
+        
         similarity_vector = self._compute_similarity(query, sharpening_beta)
-        lru_similarity_vector = self._apply_lru_addressing(similarity_vector)
+        lru_similarity_vector = self._apply_lru_addressing(similarity_vector, controller_hidden_state)
         self.address_vector = lru_similarity_vector
+
+    def _full_memory_view(self):
+        return torch.cat((self.memory_addresses, self.memory_contents), dim=1)
 
     def _compute_similarity(self, query, sharpening_beta):
         """Compute the sharpened cosine similarity vector between the query and the memory locations."""
-        full_memory_view = nn.concat(self.memory_addresses, self.memory_contents)  # TODO check op
+        full_memory_view = self._full_memory_view()
         similarity_vector = []
         for j in range(self.memory_contents.shape[0]):
             similarity_vector.append(sharpening_beta * F.cosine_similarity(full_memory_view[j, :], query, eps=1e-7))
-        return nn.tensor(similarity_vector)  # TODO check cast
+        return torch.tensor(similarity_vector) 
 
-    def _apply_lru_addressing(self, similarity_vector)
+    def _apply_lru_addressing(self, similarity_vector, controller_hidden_state):
         """Apply the Least Recently Used addressing mechanism. This shifts the addressing towards positions 
         that have not been recently read or written."""
-        lru_gamma = F.sigmoid(self.lru_mlp(controller_hidden_state))
+        lru_gamma = F.sigmoid(self.u_lru @ controller_hidden_state + self.b_lru)
         lru_similarity_vector = F.softmax(similarity_vector - lru_gamma * self.exp_mov_avg_similarity)
         self.exp_mov_avg_similarity = 0.1 * self.exp_mov_avg_similarity + 0.9 * similarity_vector
         return lru_similarity_vector
     
-    def forward(self, x)
-        pass  # TODO
+    def _init_parameters(self):
+        for name, parameter in self.named_parameters():
+            print("Initializing parameter", name)
+            nn.init.xavier_uniform_(parameter, gain=1)
+        # TODO check params initialization method in paper
+        # TODO check gain value based on activation function (i.e. using nn.init.calculate_gain)
 
-    # TODO define some hook that erases the memory content at the beginning of each episode
+    def reset_memory_content(self):
+        """This method exists to implement the memory reset at the beginning of each episode.
+        This logic should be implemented outside the model (e.g. using the helper function defined below)."""
+        self.memory_content.fill_(0)
+        # self.memory_content = torch.zeros(size=self.memory_content.shape)  # alternative
 
+    def forward(self, x):
+        warnings.warn("It makes no sense to call the memory module on its own."
+                      "The module should be accessed by the controller"
+                      "either by addressing, reading or updating the memory.", UserWarning)
