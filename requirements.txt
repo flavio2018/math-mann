@@ -1,4 +1,9 @@
+ipython
+pytest
+scipy>=1.6.0
+torch
 trax==1.4.1
+ward
 
 # local package
 -e .
