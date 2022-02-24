@@ -13,13 +13,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.modules as M
 
-import warnings
 
-
+# TODO check all parameters shapes
+# TODO implement unused memory slot
 class DynamicNeuralTuringMachine(nn.Module):
     def __init__(self, memory, controller_hidden_state_size, controller_input_size):
         super(DynamicNeuralTuringMachine, self).__init__()
-        self.memory = memory
+        self.add_module("memory", memory)
         self.controller = M.GRUCell(input_size=controller_input_size, hidden_size=controller_hidden_state_size)
         self.register_buffer("controller_hidden_state", torch.empty(size=(controller_hidden_state_size, 1)))
 
@@ -27,7 +27,8 @@ class DynamicNeuralTuringMachine(nn.Module):
         for __ in range(num_addressing_steps):
             self.memory.address_memory(self.controller_hidden_state)
             content_vector = self.memory.read()
-            self.controller_hidden_state = self.controller(torch.cat((x, content_vector), dim=1),
+            print(f"{content_vector.shape=}")
+            self.controller_hidden_state = self.controller(torch.cat((x, content_vector)),
                                                            self.controller_hidden_state)
             self.memory.update(self.controller_hidden_state, x)  
         return self.controller_hidden_state  # TODO define output
@@ -47,15 +48,15 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
 
         # query vector MLP parameters (W_k, b_k)
         self.W_query = nn.Parameter(torch.zeros(size=(self.overall_memory_size, n_locations)), requires_grad=True)
-        self.b_query = nn.Parameter(torch.zeros(size=(n_locations, 1)), requires_grad=True)
+        self.b_query = nn.Parameter(torch.zeros(size=(self.overall_memory_size, 1)), requires_grad=True)
 
         # sharpening parameters (u_beta, b_beta)
-        self.u_sharpen = nn.Parameter(torch.zeros(size=(n_locations, 1)), requires_grad=True)
-        self.b_sharpen = nn.Parameter(torch.zeros(size=(n_locations, 1)), requires_grad=True)
+        self.u_sharpen = nn.Parameter(torch.zeros(size=(1, n_locations)), requires_grad=True)
+        self.b_sharpen = nn.Parameter(torch.zeros(1), requires_grad=True)
 
         # LRU parameters (u_gamma, b_gamma)
-        self.u_lru = nn.Parameter(torch.zeros(size=(n_locations, 1)), requires_grad=True)
-        self.b_lru = nn.Parameter(torch.zeros(size=(n_locations, 1)), requires_grad=True)
+        self.u_lru = nn.Parameter(torch.zeros_like(self.u_sharpen))
+        self.b_lru = nn.Parameter(torch.zeros_like(self.b_sharpen))
         self.register_buffer("exp_mov_avg_similarity", torch.zeros(size=(n_locations, 1)))
 
         # erase parameters (generate e_t)
@@ -72,7 +73,10 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         self._init_parameters()
 
     def read(self):
-        return self._full_memory_view() @ self.address_vector  
+        if self.address_vector is None:
+            raise RuntimeError("The memory cannot be read before being addressed. Every read operation should be "
+                               "preceded by an address operation.")
+        return self._full_memory_view().T @ self.address_vector
 
     def update(self, controller_hidden_state, controller_input):
         erase_vector = self.W_erase @ controller_hidden_state + self.b_erase
@@ -86,8 +90,8 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
     def address_memory(self, controller_hidden_state):
         query = self.W_query @ controller_hidden_state + self.b_query
         sharpening_beta = F.softplus(self.u_sharpen @ controller_hidden_state + self.b_sharpen) + 1
-        
         similarity_vector = self._compute_similarity(query, sharpening_beta)
+        print(f"{similarity_vector.shape=}")
         lru_similarity_vector = self._apply_lru_addressing(similarity_vector, controller_hidden_state)
         self.address_vector = lru_similarity_vector
 
@@ -99,21 +103,26 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         full_memory_view = self._full_memory_view()
         similarity_vector = []
         for j in range(self.memory_contents.shape[0]):
-            similarity_vector.append(sharpening_beta * F.cosine_similarity(full_memory_view[j, :], query, eps=1e-7))
-        return torch.tensor(similarity_vector) 
+            similarity_value = sharpening_beta * F.cosine_similarity(full_memory_view[j, :], query.T, eps=1e-7)
+            similarity_vector.append([similarity_value])  # we want a column vector so we create a list of lists
+        return torch.tensor(similarity_vector)
 
     def _apply_lru_addressing(self, similarity_vector, controller_hidden_state):
         """Apply the Least Recently Used addressing mechanism. This shifts the addressing towards positions 
         that have not been recently read or written."""
         lru_gamma = F.sigmoid(self.u_lru @ controller_hidden_state + self.b_lru)
+        print(f"{lru_gamma.shape=}")
         lru_similarity_vector = F.softmax(similarity_vector - lru_gamma * self.exp_mov_avg_similarity)
+        print(f"{lru_similarity_vector.shape=}")
         self.exp_mov_avg_similarity = 0.1 * self.exp_mov_avg_similarity + 0.9 * similarity_vector
+        print(f"{self.exp_mov_avg_similarity.shape=}")
         return lru_similarity_vector
     
     def _init_parameters(self):
         for name, parameter in self.named_parameters():
-            print("Initializing parameter", name)
-            nn.init.xavier_uniform_(parameter, gain=1)
+            if len(parameter.shape) > 1:
+                print("Initializing parameter", name)
+                nn.init.xavier_uniform_(parameter, gain=1)
         # TODO check params initialization method in paper
         # TODO check gain value based on activation function (i.e. using nn.init.calculate_gain)
 
@@ -124,6 +133,6 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         # self.memory_content = torch.zeros(size=self.memory_content.shape)  # alternative
 
     def forward(self, x):
-        warnings.warn("It makes no sense to call the memory module on its own."
-                      "The module should be accessed by the controller"
-                      "either by addressing, reading or updating the memory.", UserWarning)
+        raise RuntimeError("It makes no sense to call the memory module on its own. "
+                           "The module should be accessed by the controller "
+                           "either by addressing, reading or updating the memory.")
