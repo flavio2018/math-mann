@@ -91,9 +91,7 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         query = self.W_query @ controller_hidden_state + self.b_query
         sharpening_beta = F.softplus(self.u_sharpen @ controller_hidden_state + self.b_sharpen) + 1
         similarity_vector = self._compute_similarity(query, sharpening_beta)
-        print(f"{similarity_vector.shape=}")
-        lru_similarity_vector = self._apply_lru_addressing(similarity_vector, controller_hidden_state)
-        self.address_vector = lru_similarity_vector
+        self.address_vector = self._apply_lru_addressing(similarity_vector, controller_hidden_state)
 
     def _full_memory_view(self):
         return torch.cat((self.memory_addresses, self.memory_contents), dim=1)
@@ -110,12 +108,9 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
     def _apply_lru_addressing(self, similarity_vector, controller_hidden_state):
         """Apply the Least Recently Used addressing mechanism. This shifts the addressing towards positions 
         that have not been recently read or written."""
-        lru_gamma = F.sigmoid(self.u_lru @ controller_hidden_state + self.b_lru)
-        print(f"{lru_gamma.shape=}")
-        lru_similarity_vector = F.softmax(similarity_vector - lru_gamma * self.exp_mov_avg_similarity)
-        print(f"{lru_similarity_vector.shape=}")
+        lru_gamma = torch.sigmoid(self.u_lru @ controller_hidden_state + self.b_lru)
+        lru_similarity_vector = F.softmax(similarity_vector - lru_gamma * self.exp_mov_avg_similarity, dim=0)
         self.exp_mov_avg_similarity = 0.1 * self.exp_mov_avg_similarity + 0.9 * similarity_vector
-        print(f"{self.exp_mov_avg_similarity.shape=}")
         return lru_similarity_vector
     
     def _init_parameters(self):
