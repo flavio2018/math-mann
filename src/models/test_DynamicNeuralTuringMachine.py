@@ -33,3 +33,12 @@ def test_dntm_memory_address_vector_shape():
     dntm_memory.address_memory(example_hidden_state)
     assert dntm_memory.address_vector.shape == (
         memory_parameters["n_locations"], 1)
+
+
+def test_dntm_memory_address_vector_sum_to_one():
+    memory_parameters = _init_dntm_memory_parameters()
+    example_hidden_state = torch.randn((memory_parameters["n_locations"], 1))
+    dntm_memory = DynamicNeuralTuringMachineMemory(
+        **memory_parameters, controller_input_size=100)
+    dntm_memory.address_memory(example_hidden_state)
+    assert dntm_memory.address_vector.sum() == 1
