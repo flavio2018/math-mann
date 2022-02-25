@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from src.models.DynamicNeuralTuringMachine import DynamicNeuralTuringMachine, DynamicNeuralTuringMachineMemory
@@ -41,4 +42,4 @@ def test_dntm_memory_address_vector_sum_to_one():
     dntm_memory = DynamicNeuralTuringMachineMemory(
         **memory_parameters, controller_input_size=100)
     dntm_memory.address_memory(example_hidden_state)
-    assert dntm_memory.address_vector.sum() == 1
+    assert dntm_memory.address_vector.sum().item() == pytest.approx(1)
