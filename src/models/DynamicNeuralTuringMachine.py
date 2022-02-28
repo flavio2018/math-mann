@@ -14,8 +14,6 @@ import torch.nn.functional as F
 import torch.nn.modules as M
 
 
-# TODO check all parameters shapes
-# TODO implement unused memory slot
 class DynamicNeuralTuringMachine(nn.Module):
     def __init__(self, memory, controller_hidden_state_size, controller_input_size):
         super(DynamicNeuralTuringMachine, self).__init__()
@@ -78,7 +76,7 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
             raise RuntimeError("The memory cannot be read before being addressed. Every read operation should be "
                                "preceded by an address operation.")
 
-        return self._full_memory_view().T @ self.address_vector
+        return self._full_memory_view()[:-1, :].T @ self.address_vector[:-1]  # this implements the NO-OP memory location
 
     def update(self, controller_hidden_state, controller_input):
         erase_vector = self.W_erase @ controller_hidden_state + self.b_erase
@@ -118,16 +116,20 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         return lru_similarity_vector
     
     def _init_parameters(self):
+        # Note: the initialization method is not specified in the original paper
         for name, parameter in self.named_parameters():
             if len(parameter.shape) > 1:
                 print("Initializing parameter", name)
-                nn.init.xavier_uniform_(parameter, gain=1)
-        # TODO check params initialization method in paper
-        # TODO check gain value based on activation function (i.e. using nn.init.calculate_gain)
+                if name in ("memory_addresses", "W_query", "b_query"):
+                    nn.init.xavier_uniform_(parameter, gain=1)
+                elif name in ("u_sharpen", "W_content_hidden", "W_content_input"):
+                    nn.init.xavier_uniform_(parameter, gain=torch.nn.init.calculate_gain("relu"))
+                elif name in ("u_lru"):
+                    nn.init.xavier_uniform_(parameter, gain=torch.nn.init.calculate_gain("sigmoid"))
 
     def reset_memory_content(self):
         """This method exists to implement the memory reset at the beginning of each episode.
-        This logic should be implemented outside the model."""
+        TODO This logic should be implemented outside the model."""
         self.memory_content.fill_(0)
         # self.memory_content = torch.zeros(size=self.memory_content.shape)  # alternative
 
