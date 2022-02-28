@@ -20,17 +20,18 @@ class DynamicNeuralTuringMachine(nn.Module):
     def __init__(self, memory, controller_hidden_state_size, controller_input_size):
         super(DynamicNeuralTuringMachine, self).__init__()
         self.add_module("memory", memory)
-        self.controller = M.GRUCell(input_size=controller_input_size, hidden_size=controller_hidden_state_size)
+        full_controller_input_size = controller_input_size + memory.overall_memory_size
+        self.controller = M.GRUCell(input_size=full_controller_input_size, hidden_size=controller_hidden_state_size)
         self.register_buffer("controller_hidden_state", torch.empty(size=(controller_hidden_state_size, 1)))
 
     def forward(self, x, num_addressing_steps=1):
         for __ in range(num_addressing_steps):
             self.memory.address_memory(self.controller_hidden_state)
             content_vector = self.memory.read()
-            print(f"{content_vector.shape=}")
-            self.controller_hidden_state = self.controller(torch.cat((x, content_vector)),
-                                                           self.controller_hidden_state)
-            self.memory.update(self.controller_hidden_state, x)  
+            # print(f"{controller_hidden_state.shape=}")
+            self.controller_hidden_state = self.controller(torch.cat((x, content_vector)).T,
+                                                           self.controller_hidden_state.T).T  # very hacky solution, should be improved
+            self.memory.update(self.controller_hidden_state, x)
         return self.controller_hidden_state  # TODO define output
 
 
@@ -55,8 +56,8 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         self.b_sharpen = nn.Parameter(torch.zeros(1), requires_grad=True)
 
         # LRU parameters (u_gamma, b_gamma)
-        self.u_lru = nn.Parameter(torch.zeros_like(self.u_sharpen))
-        self.b_lru = nn.Parameter(torch.zeros_like(self.b_sharpen))
+        self.b_lru = nn.Parameter(torch.zeros(1), requires_grad=True)
+        self.u_lru = nn.Parameter(torch.zeros(size=(1, n_locations)), requires_grad=True)
         self.register_buffer("exp_mov_avg_similarity", torch.zeros(size=(n_locations, 1)))
 
         # erase parameters (generate e_t)
@@ -65,9 +66,9 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
 
         # writing parameters (W_m, W_h, alpha)
         self.W_content_hidden = nn.Parameter(torch.zeros(size=(content_size, n_locations)), requires_grad=True)
-        self.W_content_input = nn.Parameter(torch.zeros(size=(content_size, n_locations)), requires_grad=True)
-        self.u_content_alpha = nn.Parameter(torch.zeros(size=(n_locations+controller_input_size, 1)), requires_grad=True)
-        self.b_content_alpha = nn.Parameter(torch.zeros(size=(n_locations+controller_input_size, 1)), requires_grad=True)
+        self.W_content_input = nn.Parameter(torch.zeros(size=(content_size, controller_input_size)), requires_grad=True)
+        self.u_content_alpha = nn.Parameter(torch.zeros(size=(1, n_locations+controller_input_size)), requires_grad=True)
+        self.b_content_alpha = nn.Parameter(torch.zeros(1), requires_grad=True)
         
         self.address_vector = None
         self._init_parameters()
@@ -76,16 +77,19 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         if self.address_vector is None:
             raise RuntimeError("The memory cannot be read before being addressed. Every read operation should be "
                                "preceded by an address operation.")
+
         return self._full_memory_view().T @ self.address_vector
 
     def update(self, controller_hidden_state, controller_input):
         erase_vector = self.W_erase @ controller_hidden_state + self.b_erase
-        alpha = self.u_content_alpha @ torch.cat((controller_hidden_state, controller_input), dim=1) + self.b_content_alpha
+        alpha = self.u_content_alpha @ torch.cat((controller_hidden_state, controller_input)) + self.b_content_alpha
         candidate_content_vector = F.relu(self.W_content_hidden @ controller_hidden_state + alpha * self.W_content_input @ controller_input)
 
         for j in range(self.memory_contents.shape[0]):
-            self.memory_contents[j, :] = ((1 - self.address_vector[j] * erase_vector) * self.memory_contents[j,:]
-                                          + self.address_vector[j] * candidate_content_vector)
+            weighted_erase_vector = self.address_vector[j] * erase_vector
+            self.memory_contents[j, :] -= weighted_erase_vector.squeeze()
+            weighted_candidate = self.address_vector[j] * candidate_content_vector
+            self.memory_contents[j, :] += weighted_candidate.squeeze()
 
     def address_memory(self, controller_hidden_state):
         query = self.W_query @ controller_hidden_state + self.b_query
@@ -123,7 +127,7 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
 
     def reset_memory_content(self):
         """This method exists to implement the memory reset at the beginning of each episode.
-        This logic should be implemented outside the model (e.g. using the helper function defined below)."""
+        This logic should be implemented outside the model."""
         self.memory_content.fill_(0)
         # self.memory_content = torch.zeros(size=self.memory_content.shape)  # alternative
 
