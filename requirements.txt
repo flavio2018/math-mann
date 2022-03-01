@@ -1,9 +1,10 @@
 ipython
 pytest
 scipy>=1.6.0
+toolz
 torch
+torchvision
 trax==1.4.1
-ward
 
 # local package
 -e .
