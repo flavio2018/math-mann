@@ -60,7 +60,7 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
 
         # erase parameters (generate e_t)
         self.W_erase = nn.Parameter(torch.zeros(size=(content_size, n_locations)), requires_grad=True)
-        self.b_erase = nn.Parameter(torch.zeros(size=(n_locations, 1)), requires_grad=True)
+        self.b_erase = nn.Parameter(torch.zeros(size=(content_size, 1)), requires_grad=True)
 
         # writing parameters (W_m, W_h, alpha)
         self.W_content_hidden = nn.Parameter(torch.zeros(size=(content_size, n_locations)), requires_grad=True)
@@ -124,13 +124,13 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
                     nn.init.xavier_uniform_(parameter, gain=1)
                 elif name in ("u_sharpen", "W_content_hidden", "W_content_input"):
                     nn.init.xavier_uniform_(parameter, gain=torch.nn.init.calculate_gain("relu"))
-                elif name in ("u_lru"):
+                elif name == "u_lru":
                     nn.init.xavier_uniform_(parameter, gain=torch.nn.init.calculate_gain("sigmoid"))
 
     def reset_memory_content(self):
         """This method exists to implement the memory reset at the beginning of each episode.
         TODO This logic should be implemented outside the model."""
-        self.memory_content.fill_(0)
+        self.memory_contents.fill_(0)
         # self.memory_content = torch.zeros(size=self.memory_content.shape)  # alternative
 
     def forward(self, x):
