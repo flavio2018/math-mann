@@ -27,6 +27,9 @@ class DynamicNeuralTuringMachine(nn.Module):
         self._init_parameters()
 
     def forward(self, x, num_addressing_steps=1):
+        if num_addressing_steps < 1:
+            raise RuntimeError(f"num_addressing_steps should be at least 1, received: {num_addressing_steps}")
+
         for __ in range(num_addressing_steps):
             self.memory.address_memory(self.controller_hidden_state)
             content_vector = self.memory.read()
