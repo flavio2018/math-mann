@@ -15,11 +15,13 @@ import torch.nn.modules as M
 
 
 class DynamicNeuralTuringMachine(nn.Module):
-    def __init__(self, memory, controller_hidden_state_size, controller_input_size):
+    def __init__(self, memory, controller_hidden_state_size, controller_input_size, controller_output_size=10):
         super(DynamicNeuralTuringMachine, self).__init__()
         self.add_module("memory", memory)
         full_controller_input_size = controller_input_size + memory.overall_memory_size
         self.controller = M.GRUCell(input_size=full_controller_input_size, hidden_size=controller_hidden_state_size)
+        self.W_output = torch.nn.Parameter(torch.zeros(controller_output_size, controller_hidden_state_size), requires_grad=True)
+        self.b_output = torch.nn.Parameter(torch.zeros(controller_output_size, 1), requires_grad=True)
         self.register_buffer("controller_hidden_state", torch.empty(size=(controller_hidden_state_size, 1)))
 
     def forward(self, x, num_addressing_steps=1):
@@ -30,7 +32,8 @@ class DynamicNeuralTuringMachine(nn.Module):
             self.controller_hidden_state = self.controller(torch.cat((x, content_vector)).T,
                                                            self.controller_hidden_state.T).T  # very hacky solution, should be improved
             self.memory.update(self.controller_hidden_state, x)
-        return self.controller_hidden_state  # TODO define output
+            output = F.log_softmax(self.W_output @ self.controller_hidden_state + self.b_output, dim=0)
+        return self.controller_hidden_state, output
 
 
 class DynamicNeuralTuringMachineMemory(nn.Module):
