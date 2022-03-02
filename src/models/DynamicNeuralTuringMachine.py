@@ -122,11 +122,13 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
     def _compute_similarity(self, query, sharpening_beta):
         """Compute the sharpened cosine similarity vector between the query and the memory locations."""
         full_memory_view = self._full_memory_view()
-        similarity_vector = []
+        similarity_vector = torch.empty(
+            (self.memory_contents.shape[0], 1),
+            device=sharpening_beta.device)  # a bit hacky, infers device from another parameter
         for j in range(self.memory_contents.shape[0]):
             similarity_value = sharpening_beta * F.cosine_similarity(full_memory_view[j, :], query.T, eps=1e-7)
-            similarity_vector.append([similarity_value])  # we want a column vector so we create a list of lists
-        return torch.tensor(similarity_vector)
+            similarity_vector[j] = similarity_value
+        return similarity_vector
 
     def _apply_lru_addressing(self, similarity_vector, controller_hidden_state):
         """Apply the Least Recently Used addressing mechanism. This shifts the addressing towards positions 
