@@ -24,6 +24,8 @@ class DynamicNeuralTuringMachine(nn.Module):
         self.b_output = torch.nn.Parameter(torch.zeros(controller_output_size, 1), requires_grad=True)
         self.register_buffer("controller_hidden_state", torch.empty(size=(controller_hidden_state_size, 1)))
 
+        self._init_parameters()
+
     def forward(self, x, num_addressing_steps=1):
         for __ in range(num_addressing_steps):
             self.memory.address_memory(self.controller_hidden_state)
@@ -34,6 +36,20 @@ class DynamicNeuralTuringMachine(nn.Module):
             self.memory.update(self.controller_hidden_state, x)
             output = F.log_softmax(self.W_output @ self.controller_hidden_state + self.b_output, dim=0)
         return self.controller_hidden_state, output
+
+    def _init_parameters(self):
+        # Note: the initialization method is not specified in the original paper
+        for name, parameter in self.named_parameters():
+            if len(parameter.shape) > 1:
+                print("Initializing parameter", name)
+                if name in ("memory_addresses", "W_query", "b_query"):
+                    nn.init.xavier_uniform_(parameter, gain=1)
+                elif name in ("u_sharpen", "W_content_hidden", "W_content_input"):
+                    nn.init.xavier_uniform_(parameter, gain=torch.nn.init.calculate_gain("relu"))
+                elif name == "u_lru":
+                    nn.init.xavier_uniform_(parameter, gain=torch.nn.init.calculate_gain("sigmoid"))
+                else:
+                    nn.init.xavier_uniform_(parameter)
 
 
 class DynamicNeuralTuringMachineMemory(nn.Module):
@@ -72,7 +88,6 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         self.b_content_alpha = nn.Parameter(torch.zeros(1), requires_grad=True)
         
         self.address_vector = None
-        self._init_parameters()
 
     def read(self):
         if self.address_vector is None:
@@ -118,18 +133,6 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         self.exp_mov_avg_similarity = 0.1 * self.exp_mov_avg_similarity + 0.9 * similarity_vector
         return lru_similarity_vector
     
-    def _init_parameters(self):
-        # Note: the initialization method is not specified in the original paper
-        for name, parameter in self.named_parameters():
-            if len(parameter.shape) > 1:
-                print("Initializing parameter", name)
-                if name in ("memory_addresses", "W_query", "b_query"):
-                    nn.init.xavier_uniform_(parameter, gain=1)
-                elif name in ("u_sharpen", "W_content_hidden", "W_content_input"):
-                    nn.init.xavier_uniform_(parameter, gain=torch.nn.init.calculate_gain("relu"))
-                elif name == "u_lru":
-                    nn.init.xavier_uniform_(parameter, gain=torch.nn.init.calculate_gain("sigmoid"))
-
     def reset_memory_content(self):
         """This method exists to implement the memory reset at the beginning of each episode.
         TODO This logic should be implemented outside the model."""
