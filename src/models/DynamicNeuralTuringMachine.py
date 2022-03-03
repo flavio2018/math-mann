@@ -30,7 +30,7 @@ class DynamicNeuralTuringMachine(nn.Module):
 
     def forward(self, x, num_addressing_steps=1):
         if num_addressing_steps < 1:
-            raise RuntimeError(f"num_addressing_steps should be at least 1, received: {num_addressing_steps}")
+            raise ValueError(f"num_addressing_steps should be at least 1, received: {num_addressing_steps}")
 
         logging.debug(f"{self.controller_hidden_state=}")
         logging.debug(f"{self.memory.address_vector=}")
