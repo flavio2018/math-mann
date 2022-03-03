@@ -94,10 +94,8 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         self.u_content_alpha = nn.Parameter(torch.zeros(size=(1, n_locations+controller_input_size)))
         self.b_content_alpha = nn.Parameter(torch.zeros(1))
 
-    def read(self):
-        if self.address_vector is None:
-            raise RuntimeError("The memory cannot be read before being addressed. Every read operation should be "
-                               "preceded by an address operation.")
+        # address parameters w
+        self.address_vector = nn.Parameter(torch.zeros(size=(n_locations, 1)))
 
         return self._full_memory_view()[:-1, :].T @ self.address_vector[:-1]  # this implements the NO-OP memory location
 
@@ -137,9 +135,10 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         that have not been recently read or written."""
         lru_gamma = torch.sigmoid(self.u_lru @ controller_hidden_state + self.b_lru)
         lru_similarity_vector = F.softmax(similarity_vector - lru_gamma * self.exp_mov_avg_similarity, dim=0)
-        self.exp_mov_avg_similarity = 0.1 * self.exp_mov_avg_similarity + 0.9 * similarity_vector
-        return lru_similarity_vector
-    
+        with torch.no_grad():  # following the paper in par. 3.1
+            self.exp_mov_avg_similarity = 0.1 * self.exp_mov_avg_similarity + 0.9 * similarity_vector
+        return nn.Parameter(lru_similarity_vector)
+
     def reset_memory_content(self):
         """This method exists to implement the memory reset at the beginning of each episode.
         TODO This logic should be implemented outside the model."""
