@@ -97,18 +97,16 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         # address parameters w
         self.address_vector = nn.Parameter(torch.zeros(size=(n_locations, 1)))
 
+    def read(self):
         return self._full_memory_view()[:-1, :].T @ self.address_vector[:-1]  # this implements the NO-OP memory location
 
     def update(self, controller_hidden_state, controller_input):
         erase_vector = self.W_erase @ controller_hidden_state + self.b_erase
         alpha = self.u_content_alpha @ torch.cat((controller_hidden_state, controller_input)) + self.b_content_alpha
-        candidate_content_vector = F.relu(self.W_content_hidden @ controller_hidden_state + alpha * self.W_content_input @ controller_input)
-
-        for j in range(self.memory_contents.shape[0]):
-            weighted_erase_vector = self.address_vector[j] * erase_vector
-            self.memory_contents[j, :] -= weighted_erase_vector.squeeze()
-            weighted_candidate = self.address_vector[j] * candidate_content_vector
-            self.memory_contents[j, :] += weighted_candidate.squeeze()
+        candidate_content_vector = F.relu(self.W_content_hidden @ controller_hidden_state +
+                                          alpha * self.W_content_input @ controller_input)
+        with torch.no_grad():
+            self.memory_contents += -self.address_vector @ erase_vector.T + self.address_vector @ candidate_content_vector.T
 
     def address_memory(self, controller_hidden_state):
         query = self.W_query @ controller_hidden_state + self.b_query
