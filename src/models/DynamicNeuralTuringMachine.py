@@ -36,9 +36,9 @@ class DynamicNeuralTuringMachine(nn.Module):
         logging.debug(f"{self.memory.address_vector=}")
         for __ in range(num_addressing_steps):
             self.memory.address_memory(self.controller_hidden_state)
-            content_vector = self.memory.read()
-            # print(f"{controller_hidden_state.shape=}")
-            self.controller_hidden_state = self.controller(torch.cat((x, content_vector)).T,
+            memory_reading = self.memory.read()
+            # print(f"{memory_reading=}")
+            self.controller_hidden_state = self.controller(torch.cat((x, memory_reading)).T,
                                                            self.controller_hidden_state.T).T  # very hacky solution, should be improved
             self.memory.update(self.controller_hidden_state, x)
             output = F.log_softmax(self.W_output @ self.controller_hidden_state + self.b_output, dim=0)
