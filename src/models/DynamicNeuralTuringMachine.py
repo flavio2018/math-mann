@@ -13,6 +13,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.modules as M
 
+import logging
+
 
 class DynamicNeuralTuringMachine(nn.Module):
     def __init__(self, memory, controller_hidden_state_size, controller_input_size, controller_output_size=10):
@@ -30,6 +32,8 @@ class DynamicNeuralTuringMachine(nn.Module):
         if num_addressing_steps < 1:
             raise RuntimeError(f"num_addressing_steps should be at least 1, received: {num_addressing_steps}")
 
+        logging.debug(f"{self.controller_hidden_state=}")
+        logging.debug(f"{self.memory.address_vector=}")
         for __ in range(num_addressing_steps):
             self.memory.address_memory(self.controller_hidden_state)
             content_vector = self.memory.read()
@@ -44,7 +48,7 @@ class DynamicNeuralTuringMachine(nn.Module):
         # Note: the initialization method is not specified in the original paper
         for name, parameter in self.named_parameters():
             if len(parameter.shape) > 1:
-                print("Initializing parameter", name)
+                logging.info(f"Initializing parameter {name}")
                 if name in ("memory_addresses", "W_query", "b_query"):
                     nn.init.xavier_uniform_(parameter, gain=1)
                 elif name in ("u_sharpen", "W_content_hidden", "W_content_input"):
