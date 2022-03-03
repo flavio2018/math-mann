@@ -22,8 +22,8 @@ class DynamicNeuralTuringMachine(nn.Module):
         self.add_module("memory", memory)
         full_controller_input_size = controller_input_size + memory.overall_memory_size
         self.controller = M.GRUCell(input_size=full_controller_input_size, hidden_size=controller_hidden_state_size)
-        self.W_output = torch.nn.Parameter(torch.zeros(controller_output_size, controller_hidden_state_size), requires_grad=True)
-        self.b_output = torch.nn.Parameter(torch.zeros(controller_output_size, 1), requires_grad=True)
+        self.W_output = nn.Parameter(torch.zeros(controller_output_size, controller_hidden_state_size))
+        self.b_output = nn.Parameter(torch.zeros(controller_output_size, 1))
         self.register_buffer("controller_hidden_state", torch.empty(size=(controller_hidden_state_size, 1)))
 
         self._init_parameters()
@@ -80,21 +80,19 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         self.b_sharpen = nn.Parameter(torch.zeros(1), requires_grad=True)
 
         # LRU parameters (u_gamma, b_gamma)
-        self.b_lru = nn.Parameter(torch.zeros(1), requires_grad=True)
-        self.u_lru = nn.Parameter(torch.zeros(size=(1, n_locations)), requires_grad=True)
+        self.b_lru = nn.Parameter(torch.zeros(1))
+        self.u_lru = nn.Parameter(torch.zeros(size=(1, n_locations)))
         self.register_buffer("exp_mov_avg_similarity", torch.zeros(size=(n_locations, 1)))
 
         # erase parameters (generate e_t)
-        self.W_erase = nn.Parameter(torch.zeros(size=(content_size, n_locations)), requires_grad=True)
-        self.b_erase = nn.Parameter(torch.zeros(size=(content_size, 1)), requires_grad=True)
+        self.W_erase = nn.Parameter(torch.zeros(size=(content_size, n_locations)))
+        self.b_erase = nn.Parameter(torch.zeros(size=(content_size, 1)))
 
         # writing parameters (W_m, W_h, alpha)
-        self.W_content_hidden = nn.Parameter(torch.zeros(size=(content_size, n_locations)), requires_grad=True)
-        self.W_content_input = nn.Parameter(torch.zeros(size=(content_size, controller_input_size)), requires_grad=True)
-        self.u_content_alpha = nn.Parameter(torch.zeros(size=(1, n_locations+controller_input_size)), requires_grad=True)
-        self.b_content_alpha = nn.Parameter(torch.zeros(1), requires_grad=True)
-        
-        self.address_vector = None
+        self.W_content_hidden = nn.Parameter(torch.zeros(size=(content_size, n_locations)))
+        self.W_content_input = nn.Parameter(torch.zeros(size=(content_size, controller_input_size)))
+        self.u_content_alpha = nn.Parameter(torch.zeros(size=(1, n_locations+controller_input_size)))
+        self.b_content_alpha = nn.Parameter(torch.zeros(1))
 
     def read(self):
         if self.address_vector is None:
