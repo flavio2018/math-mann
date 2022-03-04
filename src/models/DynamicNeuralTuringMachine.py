@@ -110,9 +110,13 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
 
     def address_memory(self, controller_hidden_state):
         query = self.W_query @ controller_hidden_state + self.b_query
+        logging.debug(f"{query.shape=}")
         sharpening_beta = F.softplus(self.u_sharpen @ controller_hidden_state + self.b_sharpen) + 1
+        logging.debug(f"{sharpening_beta.shape=}")
         similarity_vector = self._compute_similarity(query, sharpening_beta)
-        self.address_vector = self._apply_lru_addressing(similarity_vector, controller_hidden_state)
+        logging.debug(f"{similarity_vector.shape=}")
+        self.address_vector = self._apply_lru_addressing(similarity_vector.T, controller_hidden_state)
+        logging.debug(f"{self.address_vector.shape=}")
 
     def _full_memory_view(self):
         return torch.cat((self.memory_addresses, self.memory_contents), dim=1)
@@ -120,13 +124,9 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
     def _compute_similarity(self, query, sharpening_beta):
         """Compute the sharpened cosine similarity vector between the query and the memory locations."""
         full_memory_view = self._full_memory_view()
-        similarity_vector = torch.empty(
-            (self.memory_contents.shape[0], 1),
-            device=sharpening_beta.device)  # a bit hacky, infers device from another parameter
-        for j in range(self.memory_contents.shape[0]):
-            similarity_value = sharpening_beta * F.cosine_similarity(full_memory_view[j, :], query.T, eps=1e-7)
-            similarity_vector[j] = similarity_value
-        return similarity_vector
+        logging.debug(f"{full_memory_view.shape=}")
+        logging.debug(f"{query.shape=}")
+        return sharpening_beta * F.cosine_similarity(full_memory_view, query.T, eps=1e-7)
 
     def _apply_lru_addressing(self, similarity_vector, controller_hidden_state):
         """Apply the Least Recently Used addressing mechanism. This shifts the addressing towards positions 
