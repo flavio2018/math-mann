@@ -1,7 +1,8 @@
 import pytest
 import torch
 
-from src.models.DynamicNeuralTuringMachine import DynamicNeuralTuringMachine, DynamicNeuralTuringMachineMemory
+from src.models.DynamicNeuralTuringMachine import DynamicNeuralTuringMachine
+from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachineMemory
 
 
 CONTROLLER_INPUT_SIZE = 150
