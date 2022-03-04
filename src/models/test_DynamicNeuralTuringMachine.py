@@ -6,6 +6,7 @@ from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachi
 
 
 CONTROLLER_INPUT_SIZE = 150
+CONTROLLER_OUTPUT_SIZE = 10
 
 
 def _init_dntm_memory_parameters():
