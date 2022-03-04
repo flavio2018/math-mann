@@ -1,13 +1,15 @@
 """This script trains a DNTM on the PMNIST task."""
 import click
+import torch.nn
 from codetiming import Timer
 from humanfriendly import format_timespan
+import logging
 
 from toolz.functoolz import compose_left
 
 import numpy as np
 from torchvision import datasets
-from torchvision.transforms import Lambda, ToTensor
+from torchvision.transforms import Lambda
 from torch.utils.data import DataLoader
 
 from src.models.DynamicNeuralTuringMachine import DynamicNeuralTuringMachine, DynamicNeuralTuringMachineMemory
