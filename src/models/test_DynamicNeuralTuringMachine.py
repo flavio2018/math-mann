@@ -95,3 +95,21 @@ def test_dntm_memory_is_zeros_after_reset():
         dntm_memory.update(mock_hidden_state, _mock_controller_input())
         dntm_memory.reset_memory_content()
     assert (dntm_memory.memory_contents == 0).all()
+
+
+def test_dntm_controller_hidden_state_contains_no_nan_values_after_update():
+    memory_parameters = _init_dntm_memory_parameters()
+    mocked_controller_input = _mock_controller_input()
+
+    dntm_memory = DynamicNeuralTuringMachineMemory(
+        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE)
+    dntm = DynamicNeuralTuringMachine(
+        memory=dntm_memory,
+        controller_hidden_state_size=memory_parameters["n_locations"],
+        controller_input_size=CONTROLLER_INPUT_SIZE,
+        controller_output_size=CONTROLLER_OUTPUT_SIZE
+    )
+    with torch.no_grad():
+        dntm(mocked_controller_input)
+
+    assert not dntm.controller_hidden_state.isnan().any()
