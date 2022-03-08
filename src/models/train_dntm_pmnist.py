@@ -22,15 +22,16 @@ from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachi
 @click.command()
 @click.option("--loglevel", type=str, default="INFO")
 @click.option("--run_name", type=str, default="")
+@click.option("--n_locations", type=int, default=750)
 @Timer(text=lambda secs: f"Took {format_timespan(secs)}")
-def click_wrapper(loglevel, run_name):
+def click_wrapper(loglevel, run_name, n_locations):
     """This wrapper is needed to
     a) import the main method of the script in other scripts, to enable reuse and modularity
     b) allow to access the name of the function in the main method"""
-    train_dntm_pmnist(loglevel, run_name)
+    train_dntm_pmnist(loglevel, run_name, n_locations)
 
 
-def train_dntm_pmnist(loglevel, run_name):
+def train_dntm_pmnist(loglevel, run_name, n_locations):
     run_name = "_".join([train_dntm_pmnist.__name__, get_str_timestamp(), run_name])
 
     configure_logging(loglevel, run_name)
@@ -62,7 +63,6 @@ def train_dntm_pmnist(loglevel, run_name):
 
     data_loader = DataLoader(pmnist, batch_size=1)
 
-    n_locations = 150
     controller_input_size = 1
     controller_output_size = 10
     dntm_memory = DynamicNeuralTuringMachineMemory(
