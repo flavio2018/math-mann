@@ -13,7 +13,8 @@ from torchvision.transforms import Lambda
 from torch.utils.data import DataLoader
 
 
-from src.models.DynamicNeuralTuringMachine import DynamicNeuralTuringMachine, DynamicNeuralTuringMachineMemory
+from src.models.DynamicNeuralTuringMachine import DynamicNeuralTuringMachine
+from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachineMemory
 
 
 @click.command()
@@ -51,6 +52,7 @@ def main(loglevel):
 
     n_locations = 150
     controller_input_size = 1
+    controller_output_size = 10
     dntm_memory = DynamicNeuralTuringMachineMemory(
         n_locations=n_locations,
         content_size=100,

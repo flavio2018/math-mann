@@ -39,7 +39,8 @@ class DynamicNeuralTuringMachine(nn.Module):
             memory_reading = self.memory.read()
             # print(f"{memory_reading=}")
             self.controller_hidden_state = self.controller(torch.cat((x, memory_reading)).T,
-                                                           self.controller_hidden_state.T).T  # very hacky solution, should be improved
+                                                           self.controller_hidden_state.T).T.detach()
+            # ^ very hacky solution, should be improved
             self.memory.update(self.controller_hidden_state, x)
             output = F.log_softmax(self.W_output @ self.controller_hidden_state + self.b_output, dim=0)
         return self.controller_hidden_state, output
