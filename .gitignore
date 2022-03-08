@@ -1,5 +1,6 @@
 # model checkpoints and dumps
-/models/checkpoints/
+models/checkpoints/
+logs/
 
 # virtual environment
 .math-mann/
