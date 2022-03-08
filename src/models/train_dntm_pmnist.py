@@ -5,6 +5,8 @@ from codetiming import Timer
 from humanfriendly import format_timespan
 import logging
 
+from src.utils import configure_logging, get_str_timestamp
+
 from toolz.functoolz import compose_left
 
 import numpy as np
@@ -19,9 +21,19 @@ from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachi
 
 @click.command()
 @click.option("--loglevel", type=str, default="INFO")
+@click.option("--run_name", type=str, default="")
 @Timer(text=lambda secs: f"Took {format_timespan(secs)}")
-def main(loglevel):
-    configure_logging(loglevel)
+def click_wrapper(loglevel, run_name):
+    """This wrapper is needed to
+    a) import the main method of the script in other scripts, to enable reuse and modularity
+    b) allow to access the name of the function in the main method"""
+    train_dntm_pmnist(loglevel, run_name)
+
+
+def train_dntm_pmnist(loglevel, run_name):
+    run_name = "_".join([train_dntm_pmnist.__name__, get_str_timestamp(), run_name])
+
+    configure_logging(loglevel, run_name)
 
     def _convert_to_float32(x: np.array):
         return x.astype(np.float32)
@@ -98,21 +110,5 @@ def main(loglevel):
         logging.info(f"{epoch=}: {loss_value=}")
 
 
-def configure_logging(loglevel):
-    # assuming loglevel is bound to the string value obtained from the
-    # command line argument. Convert to upper case to allow the user to
-    # specify --log=DEBUG or --log=debug
-    numeric_level = getattr(logging, loglevel.upper(), None)
-
-    if not isinstance(numeric_level, int):
-        raise ValueError('Invalid log level: %s' % loglevel)
-
-    logging.basicConfig(
-        filename='train_dntm_pmnist.log',
-        level=numeric_level,
-        format='%(levelname)s:%(message)s',
-        filemode="w")
-
-
 if __name__ == "__main__":
-    main()
+    click_wrapper()
