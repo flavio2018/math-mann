@@ -13,6 +13,7 @@ import numpy as np
 from torchvision import datasets
 from torchvision.transforms import Lambda
 from torch.utils.data import DataLoader
+import mlflow
 
 
 from src.models.DynamicNeuralTuringMachine import DynamicNeuralTuringMachine
@@ -22,19 +23,24 @@ from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachi
 @click.command()
 @click.option("--loglevel", type=str, default="INFO")
 @click.option("--run_name", type=str, default="")
+@click.option("--lr", type=float, default=0.00001)
 @click.option("--n_locations", type=int, default=750)
+@click.option("--content_size", type=int, default=100)
+@click.option("--address_size", type=int, default=20)
 @Timer(text=lambda secs: f"Took {format_timespan(secs)}")
-def click_wrapper(loglevel, run_name, n_locations):
+def click_wrapper(loglevel, run_name, n_locations, content_size, address_size, lr):
     """This wrapper is needed to
     a) import the main method of the script in other scripts, to enable reuse and modularity
     b) allow to access the name of the function in the main method"""
-    train_dntm_pmnist(loglevel, run_name, n_locations)
+    train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_size, lr)
 
 
-def train_dntm_pmnist(loglevel, run_name, n_locations):
+def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_size, lr):
     run_name = "_".join([train_dntm_pmnist.__name__, get_str_timestamp(), run_name])
 
     configure_logging(loglevel, run_name)
+    mlflow.set_tracking_uri("file:../logs/mlruns/")
+    mlflow.set_experiment(experiment_name="dntm_pmnist")
 
     def _convert_to_float32(x: np.array):
         return x.astype(np.float32)
@@ -67,8 +73,8 @@ def train_dntm_pmnist(loglevel, run_name, n_locations):
     controller_output_size = 10
     dntm_memory = DynamicNeuralTuringMachineMemory(
         n_locations=n_locations,
-        content_size=100,
-        address_size=20,
+        content_size=content_size,
+        address_size=address_size,
         controller_input_size=controller_input_size
     )
     dntm = DynamicNeuralTuringMachine(
@@ -79,35 +85,46 @@ def train_dntm_pmnist(loglevel, run_name, n_locations):
     ).to("cuda")
 
     loss_fn = torch.nn.NLLLoss()
-    opt = torch.optim.Adam(dntm.parameters())
+    opt = torch.optim.Adam(dntm.parameters(), lr=lr)
 
-    # TODO handle minibatches?
-    torch.autograd.set_detect_anomaly(True)
-    for epoch in range(2):
-        for i, (mnist_image, target) in enumerate(data_loader):
-            logging.info(f"MNIST image {i}")
-            dntm.zero_grad()
+    with mlflow.start_run(run_name=run_name):
+        mlflow.log_param("learning_rate", lr)
+        mlflow.log_params({
+                "n_locations": n_locations,
+                "content_size": content_size,
+                "address_size": address_size,
+                "controller_input_size": controller_input_size,
+                "controller_output_size": controller_output_size
+            })
 
-            logging.debug(f"Moving image to GPU")
-            mnist_image, target = mnist_image.to("cuda"), target.to("cuda")
+        # TODO handle minibatches?
+        torch.autograd.set_detect_anomaly(True)
+        for epoch in range(2):
+            for mnist_i, (mnist_image, target) in enumerate(data_loader):
+                logging.info(f"MNIST image {mnist_i}")
+                dntm.zero_grad()
 
-            logging.debug(f"Looping through image pixels")
-            for pixel in mnist_image[0]:
-                __, output = dntm(pixel.view(1, 1))
+                logging.debug(f"Moving image to GPU")
+                mnist_image, target = mnist_image.to("cuda"), target.to("cuda")
 
-            logging.debug(f"Computing loss value")
-            loss_value = loss_fn(output.T, target)
+                logging.debug(f"Looping through image pixels")
+                for pixel_i, pixel in enumerate(mnist_image[0]):
+                    logging.debug(f"Pixel {pixel_i}")
+                    __, output = dntm(pixel.view(1, 1))
 
-            logging.debug(f"Computing gradients")
-            loss_value.backward()
+                logging.debug(f"Computing loss value")
+                loss_value = loss_fn(output.T, target)
 
-            logging.debug(f"Running optimization step")
-            opt.step()
+                logging.debug(f"Computing gradients")
+                loss_value.backward()
 
-            logging.debug(f"Resetting the memory")
-            dntm.memory.reset_memory_content()
+                logging.debug(f"Running optimization step")
+                opt.step()
 
-        logging.info(f"{epoch=}: {loss_value=}")
+                logging.debug(f"Resetting the memory")
+                dntm.memory.reset_memory_content()
+
+            logging.info(f"{epoch=}: {loss_value=}")
 
 
 if __name__ == "__main__":
