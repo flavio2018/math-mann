@@ -26,7 +26,7 @@ class DynamicNeuralTuringMachine(nn.Module):
         self.b_output = nn.Parameter(torch.zeros(controller_output_size, 1))
         self.register_buffer("controller_hidden_state", torch.empty(size=(controller_hidden_state_size, 1)))
 
-        self._init_parameters()
+        self._init_parameters(init_function=nn.init.xavier_uniform_)
 
     def forward(self, x, num_addressing_steps=1):
         if num_addressing_steps < 1:
@@ -45,16 +45,18 @@ class DynamicNeuralTuringMachine(nn.Module):
             output = F.log_softmax(self.W_output @ self.controller_hidden_state + self.b_output, dim=0)
         return self.controller_hidden_state, output
 
-    def _init_parameters(self):
+    def _init_parameters(self, init_function):
+        logging.info(f"Initialization method: {init_function.__name__}")
         # Note: the initialization method is not specified in the original paper
         for name, parameter in self.named_parameters():
             if len(parameter.shape) > 1:
                 logging.info(f"Initializing parameter {name}")
                 if name in ("memory_addresses", "W_query", "b_query"):
-                    nn.init.xavier_uniform_(parameter, gain=1)
+                    init_function(parameter, gain=1)
                 elif name in ("u_sharpen", "W_content_hidden", "W_content_input"):
-                    nn.init.xavier_uniform_(parameter, gain=torch.nn.init.calculate_gain("relu"))
+                    init_function(parameter, gain=torch.nn.init.calculate_gain("relu"))
                 elif name == "u_lru":
-                    nn.init.xavier_uniform_(parameter, gain=torch.nn.init.calculate_gain("sigmoid"))
+                    init_function(parameter, gain=torch.nn.init.calculate_gain("sigmoid"))
                 else:
-                    nn.init.xavier_uniform_(parameter)
+                    init_function(parameter)
+
