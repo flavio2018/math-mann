@@ -14,7 +14,7 @@ def configure_logging(loglevel, run_name):
     logging.basicConfig(
         filename=f"../logs/{run_name}.log",
         level=numeric_level,
-        format='%(levelname)s:%(message)s',
+        format='%(levelname)s:%(filename)s:%(message)s',
         filemode="w")
 
 
