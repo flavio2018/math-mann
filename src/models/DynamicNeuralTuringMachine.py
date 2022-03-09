@@ -24,7 +24,7 @@ class DynamicNeuralTuringMachine(nn.Module):
         self.controller = M.GRUCell(input_size=full_controller_input_size, hidden_size=controller_hidden_state_size)
         self.W_output = nn.Parameter(torch.zeros(controller_output_size, controller_hidden_state_size))
         self.b_output = nn.Parameter(torch.zeros(controller_output_size, 1))
-        self.register_buffer("controller_hidden_state", torch.empty(size=(controller_hidden_state_size, 1)))
+        self.register_buffer("controller_hidden_state", torch.zeros(size=(controller_hidden_state_size, 1)))
 
         self._init_parameters(init_function=nn.init.xavier_uniform_)
 
