@@ -60,7 +60,10 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         logging.debug(f"{candidate_content_vector.isnan().any()=}")
 
         with torch.no_grad():
-            self.memory_contents += -self.address_vector @ erase_vector.T + self.address_vector @ candidate_content_vector.T
+            self.memory_contents = (self.memory_contents
+                                    - self.address_vector @ erase_vector.T
+                                    + self.address_vector @ candidate_content_vector.T)
+        logging.debug(f"{self.memory_contents.element_size() * self.memory_contents.nelement()=}")
 
     def address_memory(self, controller_hidden_state):
         query = self.W_query @ controller_hidden_state + self.b_query
