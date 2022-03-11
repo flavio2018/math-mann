@@ -100,7 +100,9 @@ def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_siz
         # TODO handle minibatches?
         torch.autograd.set_detect_anomaly(True)
         for epoch in range(2):
-            for mnist_i, (mnist_image, target) in enumerate(data_loader):
+            for mnist_i, (mnist_images, targets) in enumerate(data_loader):
+                logging.debug(f"{torch.cuda.memory_summary()=}")
+
                 logging.info(f"MNIST image {mnist_i}")
                 dntm.zero_grad()
 
