@@ -25,8 +25,8 @@ from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachi
 @click.option("--run_name", type=str, default="")
 @click.option("--lr", type=float, default=0.00001)
 @click.option("--n_locations", type=int, default=750)
-@click.option("--content_size", type=int, default=100)
-@click.option("--address_size", type=int, default=20)
+@click.option("--content_size", type=int, default=32)
+@click.option("--address_size", type=int, default=8)
 @Timer(text=lambda secs: f"Took {format_timespan(secs)}")
 def click_wrapper(loglevel, run_name, n_locations, content_size, address_size, lr):
     """This wrapper is needed to
