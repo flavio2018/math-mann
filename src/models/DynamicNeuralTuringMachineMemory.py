@@ -98,7 +98,8 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         that have not been recently read or written."""
         lru_gamma = torch.sigmoid(self.u_lru @ controller_hidden_state + self.b_lru)
         lru_similarity_vector = F.softmax(similarity_vector - lru_gamma * self.exp_mov_avg_similarity, dim=0)
-        self.exp_mov_avg_similarity = 0.1 * self.exp_mov_avg_similarity + 0.9 * similarity_vector
+        with torch.no_grad():
+            self.exp_mov_avg_similarity = 0.1 * self.exp_mov_avg_similarity + 0.9 * similarity_vector
         return nn.Parameter(lru_similarity_vector)
 
     def reset_memory_content(self):
