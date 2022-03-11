@@ -107,15 +107,15 @@ def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_siz
                 dntm.zero_grad()
 
                 logging.debug(f"Moving image to GPU")
-                mnist_image, target = mnist_image.to("cuda"), target.to("cuda")
+                mnist_images, targets = mnist_images.to("cuda"), targets.to("cuda")
 
                 logging.debug(f"Looping through image pixels")
-                for pixel_i, pixel in enumerate(mnist_image[0]):
+                for pixel_i, pixels in enumerate(mnist_images.T):
                     logging.debug(f"Pixel {pixel_i}")
-                    __, output = dntm(pixel.view(1, 1))
+                    __, output = dntm(pixels.view(1, 1))
 
                 logging.debug(f"Computing loss value")
-                loss_value = loss_fn(output.T, target)
+                loss_value = loss_fn(output.T, targets)
 
                 logging.debug(f"Computing gradients")
                 loss_value.backward()
