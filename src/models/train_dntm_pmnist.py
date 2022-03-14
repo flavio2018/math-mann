@@ -13,6 +13,7 @@ import numpy as np
 from torchvision import datasets
 from torchvision.transforms import Lambda
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 import mlflow
 
 
@@ -41,6 +42,7 @@ def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_siz
     configure_logging(loglevel, run_name)
     mlflow.set_tracking_uri("file:../logs/mlruns/")
     mlflow.set_experiment(experiment_name="dntm_pmnist")
+    writer = SummaryWriter(log_dir=f"../logs/tensorboard/{run_name}")
 
     def _convert_to_float32(x: np.array):
         return x.astype(np.float32)
@@ -125,8 +127,8 @@ def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_siz
 
                 logging.debug(f"Resetting the memory")
                 dntm.memory.reset_memory_content()
-
-            logging.info(f"{epoch=}: {loss_value=}")
+                logging.info(f"{mnist_i=}: {loss_value=}")
+                writer.add_scalar("Loss/train", loss_value, mnist_i)
 
 
 if __name__ == "__main__":
