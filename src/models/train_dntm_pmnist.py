@@ -25,18 +25,19 @@ from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachi
 @click.option("--loglevel", type=str, default="INFO")
 @click.option("--run_name", type=str, default="")
 @click.option("--lr", type=float, default=0.00001)
+@click.option("--batch_size", type=int, default=4)
 @click.option("--n_locations", type=int, default=750)
 @click.option("--content_size", type=int, default=32)
 @click.option("--address_size", type=int, default=8)
 @Timer(text=lambda secs: f"Took {format_timespan(secs)}")
-def click_wrapper(loglevel, run_name, n_locations, content_size, address_size, lr):
+def click_wrapper(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size):
     """This wrapper is needed to
     a) import the main method of the script in other scripts, to enable reuse and modularity
     b) allow to access the name of the function in the main method"""
-    train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_size, lr)
+    train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size)
 
 
-def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_size, lr):
+def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size):
     run_name = "_".join([train_dntm_pmnist.__name__, get_str_timestamp(), run_name])
 
     configure_logging(loglevel, run_name)
@@ -69,7 +70,7 @@ def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_siz
         transform=Lambda(lambda x: transforms(x)),
     )
 
-    data_loader = DataLoader(pmnist, batch_size=1)
+    data_loader = DataLoader(pmnist, batch_size=batch_size)
 
     controller_input_size = 1
     controller_output_size = 10
@@ -77,13 +78,15 @@ def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_siz
         n_locations=n_locations,
         content_size=content_size,
         address_size=address_size,
-        controller_input_size=controller_input_size
+        controller_input_size=controller_input_size,
+        batch_size=batch_size,
     )
     dntm = DynamicNeuralTuringMachine(
         memory=dntm_memory,
         controller_hidden_state_size=n_locations,
         controller_input_size=controller_input_size,
-        controller_output_size=controller_output_size
+        controller_output_size=controller_output_size,
+        batch_size=batch_size,
     ).to("cuda")
 
     loss_fn = torch.nn.NLLLoss()
@@ -102,10 +105,10 @@ def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_siz
         # TODO handle minibatches?
         torch.autograd.set_detect_anomaly(True)
         for epoch in range(2):
-            for mnist_i, (mnist_images, targets) in enumerate(data_loader):
+            for batch_i, (mnist_images, targets) in enumerate(data_loader):
                 logging.debug(f"{torch.cuda.memory_summary()=}")
 
-                logging.info(f"MNIST image {mnist_i}")
+                logging.info(f"MNIST batch {batch_i}")
                 dntm.zero_grad()
 
                 logging.debug(f"Moving image to GPU")
@@ -114,7 +117,7 @@ def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_siz
                 logging.debug(f"Looping through image pixels")
                 for pixel_i, pixels in enumerate(mnist_images.T):
                     logging.debug(f"Pixel {pixel_i}")
-                    __, output = dntm(pixels.view(1, 1))
+                    __, output = dntm(pixels.view(1, batch_size))
 
                 logging.debug(f"Computing loss value")
                 loss_value = loss_fn(output.T, targets)
@@ -127,8 +130,8 @@ def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_siz
 
                 logging.debug(f"Resetting the memory")
                 dntm.memory.reset_memory_content()
-                logging.info(f"{mnist_i=}: {loss_value=}")
-                writer.add_scalar("Loss/train", loss_value, mnist_i)
+                logging.info(f"{batch_i=}: {loss_value=}")
+                writer.add_scalar("Loss/train", loss_value, batch_i)
 
 
 if __name__ == "__main__":
