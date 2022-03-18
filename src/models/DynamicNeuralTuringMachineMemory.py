@@ -6,7 +6,7 @@ import logging
 
 
 class DynamicNeuralTuringMachineMemory(nn.Module):
-    def __init__(self, n_locations, content_size, address_size, controller_input_size):
+    def __init__(self, n_locations, content_size, address_size, controller_input_size, batch_size=1):
         """Instantiate the memory.
         n_locations: number of memory locations
         content_size: size of the content part of memory locations
@@ -28,8 +28,8 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
 
         # LRU parameters (u_gamma, b_gamma)
         self.b_lru = nn.Parameter(torch.zeros(1))
-        self.u_lru = nn.Parameter(torch.zeros(size=(1, n_locations)))
-        self.register_buffer("exp_mov_avg_similarity", torch.zeros(size=(n_locations, 1)))
+        self.u_lru = nn.Parameter(torch.zeros(size=(n_locations, 1)))
+        self.register_buffer("exp_mov_avg_similarity", torch.zeros(size=(n_locations, batch_size)))
 
         # erase parameters (generate e_t)
         self.W_erase = nn.Parameter(torch.zeros(size=(content_size, n_locations)))
@@ -56,7 +56,7 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         logging.debug(f"{alpha.isnan().any()=}")
 
         candidate_content_vector = F.relu(self.W_content_hidden @ controller_hidden_state +
-                                          alpha * self.W_content_input @ controller_input)
+                                          torch.mul(alpha, self.W_content_input @ controller_input))
         logging.debug(f"{candidate_content_vector.isnan().any()=}")
 
         with torch.no_grad():
@@ -66,19 +66,19 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         logging.debug(f"{self.memory_contents.element_size() * self.memory_contents.nelement()=}")
 
     def address_memory(self, controller_hidden_state):
-        query = self.W_query @ controller_hidden_state + self.b_query
+        query = self.W_query.T @ controller_hidden_state + self.b_query
         logging.debug(f"{query.isnan().any()=}")
         logging.debug(f"{query.mean()=}")
         logging.debug(f"{query.max()=}")
         logging.debug(f"{query.min()=}")
 
-        sharpening_beta = F.softplus(self.u_sharpen @ controller_hidden_state + self.b_sharpen) + 1
+        sharpening_beta = F.softplus(self.u_sharpen.T @ controller_hidden_state + self.b_sharpen) + 1
         logging.debug(f"{sharpening_beta.isnan().any()=}")
 
         similarity_vector = self._compute_similarity(query, sharpening_beta)
         logging.debug(f"{similarity_vector.isnan().any()=}")
 
-        self.address_vector = self._apply_lru_addressing(similarity_vector.T, controller_hidden_state)
+        self.address_vector = self._apply_lru_addressing(similarity_vector, controller_hidden_state)
         logging.debug(f"{self.address_vector.isnan().any()=}")
 
     def _full_memory_view(self):

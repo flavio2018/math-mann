@@ -7,6 +7,7 @@ from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachi
 
 CONTROLLER_INPUT_SIZE = 150
 CONTROLLER_OUTPUT_SIZE = 10
+BATCH_SIZE = 4
 
 
 def _init_dntm_memory_parameters():
@@ -21,43 +22,42 @@ def _init_dntm_memory_parameters():
 
 
 def _mock_controller_input():
-    controller_input_size = CONTROLLER_INPUT_SIZE
-    return torch.ones((controller_input_size, 1))
+    return torch.ones((CONTROLLER_INPUT_SIZE, BATCH_SIZE))
 
 
 def _mock_controller_hidden_state():
     memory_parameters = _init_dntm_memory_parameters()
-    return torch.randn((memory_parameters["n_locations"], 1))
+    return torch.randn((memory_parameters["n_locations"], BATCH_SIZE))
 
 
 def test_dntm_memory_reading_shape():
     memory_parameters = _init_dntm_memory_parameters()
     mock_hidden_state = _mock_controller_hidden_state()
     dntm_memory = DynamicNeuralTuringMachineMemory(
-        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE)
+        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE, batch_size=BATCH_SIZE)
     with torch.no_grad():
         dntm_memory.address_memory(mock_hidden_state)
         memory_reading = dntm_memory.read()
     assert memory_reading.shape == (
-        memory_parameters["content_size"] + memory_parameters["address_size"], 1)
+        memory_parameters["content_size"] + memory_parameters["address_size"], BATCH_SIZE)
 
 
 def test_dntm_memory_address_vector_shape():
     memory_parameters = _init_dntm_memory_parameters()
     mock_hidden_state = _mock_controller_hidden_state()
     dntm_memory = DynamicNeuralTuringMachineMemory(
-        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE)
+        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE, batch_size=BATCH_SIZE)
     with torch.no_grad():
         dntm_memory.address_memory(mock_hidden_state)
     assert dntm_memory.address_vector.shape == (
-        memory_parameters["n_locations"], 1)
+        memory_parameters["n_locations"], BATCH_SIZE)
 
 
 def test_dntm_memory_address_vector_contains_no_nan_values():
     memory_parameters = _init_dntm_memory_parameters()
     mock_hidden_state = _mock_controller_hidden_state()
     dntm_memory = DynamicNeuralTuringMachineMemory(
-        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE)
+        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE, batch_size=BATCH_SIZE)
     with torch.no_grad():
         dntm_memory.address_memory(mock_hidden_state)
     assert not dntm_memory.address_vector.isnan().any()
@@ -67,10 +67,10 @@ def test_dntm_memory_address_vector_sum_to_one():
     memory_parameters = _init_dntm_memory_parameters()
     mock_hidden_state = _mock_controller_hidden_state()
     dntm_memory = DynamicNeuralTuringMachineMemory(
-        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE)
+        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE, batch_size=BATCH_SIZE)
     with torch.no_grad():
         dntm_memory.address_memory(mock_hidden_state)
-    assert dntm_memory.address_vector.sum().item() == pytest.approx(1)
+    assert dntm_memory.address_vector.sum().item() == pytest.approx(BATCH_SIZE)
 
 
 def test_dntm_memory_contents_shape_doesnt_change_after_update():
@@ -78,7 +78,7 @@ def test_dntm_memory_contents_shape_doesnt_change_after_update():
     mock_hidden_state = _mock_controller_hidden_state()
 
     dntm_memory = DynamicNeuralTuringMachineMemory(
-        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE)
+        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE, batch_size=BATCH_SIZE)
     with torch.no_grad():
         dntm_memory.address_memory(mock_hidden_state)
         memory_contents_before_update = dntm_memory.memory_contents
@@ -91,7 +91,7 @@ def test_dntm_memory_is_zeros_after_reset():
     mock_hidden_state = _mock_controller_hidden_state()
 
     dntm_memory = DynamicNeuralTuringMachineMemory(
-        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE)
+        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE, batch_size=BATCH_SIZE)
     with torch.no_grad():
         dntm_memory.address_memory(mock_hidden_state)
         dntm_memory.update(mock_hidden_state, _mock_controller_input())
@@ -104,12 +104,13 @@ def test_dntm_controller_hidden_state_contains_no_nan_values_after_update():
     mocked_controller_input = _mock_controller_input()
 
     dntm_memory = DynamicNeuralTuringMachineMemory(
-        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE)
+        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE, batch_size=BATCH_SIZE)
     dntm = DynamicNeuralTuringMachine(
         memory=dntm_memory,
         controller_hidden_state_size=memory_parameters["n_locations"],
         controller_input_size=CONTROLLER_INPUT_SIZE,
-        controller_output_size=CONTROLLER_OUTPUT_SIZE
+        controller_output_size=CONTROLLER_OUTPUT_SIZE,
+        batch_size=BATCH_SIZE,
     )
     with torch.no_grad():
         dntm(mocked_controller_input)
