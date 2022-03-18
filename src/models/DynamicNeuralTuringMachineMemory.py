@@ -19,11 +19,11 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         self.overall_memory_size = content_size + address_size
 
         # query vector MLP parameters (W_k, b_k)
-        self.W_query = nn.Parameter(torch.zeros(size=(self.overall_memory_size, n_locations)), requires_grad=True)
+        self.W_query = nn.Parameter(torch.zeros(size=(n_locations, self.overall_memory_size)), requires_grad=True)
         self.b_query = nn.Parameter(torch.zeros(size=(self.overall_memory_size, 1)), requires_grad=True)
 
         # sharpening parameters (u_beta, b_beta)
-        self.u_sharpen = nn.Parameter(torch.zeros(size=(1, n_locations)), requires_grad=True)
+        self.u_sharpen = nn.Parameter(torch.zeros(size=(n_locations, 1)), requires_grad=True)
         self.b_sharpen = nn.Parameter(torch.zeros(1), requires_grad=True)
 
         # LRU parameters (u_gamma, b_gamma)
