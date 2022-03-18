@@ -91,12 +91,13 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         logging.debug(f"{full_memory_view.mean()=}")
         logging.debug(f"{full_memory_view.min()=}")
         logging.debug(f"{full_memory_view.max()=}")
-        return sharpening_beta * F.cosine_similarity(full_memory_view, query.T, eps=1e-7)
+        return sharpening_beta * F.cosine_similarity(full_memory_view[:, None, :], query.T[None, :, :],
+                                                     eps=1e-7, dim=-1)
 
     def _apply_lru_addressing(self, similarity_vector, controller_hidden_state):
         """Apply the Least Recently Used addressing mechanism. This shifts the addressing towards positions
         that have not been recently read or written."""
-        lru_gamma = torch.sigmoid(self.u_lru @ controller_hidden_state + self.b_lru)
+        lru_gamma = torch.sigmoid(self.u_lru.T @ controller_hidden_state + self.b_lru)
         lru_similarity_vector = F.softmax(similarity_vector - lru_gamma * self.exp_mov_avg_similarity, dim=0)
         with torch.no_grad():
             self.exp_mov_avg_similarity = 0.1 * self.exp_mov_avg_similarity + 0.9 * similarity_vector
