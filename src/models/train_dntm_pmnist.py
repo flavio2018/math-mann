@@ -52,7 +52,8 @@ def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_siz
         return x.flatten()
 
     def _shuffle_digit_array(x):
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(seed=123456)
+        # ^ the permutation should be the same for all digits
         rng.shuffle(x)
         return x
 
@@ -60,7 +61,7 @@ def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_siz
          np.array,
          _flatten,
          _convert_to_float32,
-         _shuffle_digit_array,
+         #_shuffle_digit_array,
     )
 
     pmnist = datasets.MNIST(
