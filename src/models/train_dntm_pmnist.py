@@ -48,26 +48,11 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
 
     controller_input_size = 1
     controller_output_size = 10
-    dntm_memory = DynamicNeuralTuringMachineMemory(
-        n_locations=n_locations,
-        content_size=content_size,
-        address_size=address_size,
-        controller_input_size=controller_input_size,
-        batch_size=batch_size,
-    )
-    dntm = DynamicNeuralTuringMachine(
-        memory=dntm_memory,
-        controller_hidden_state_size=n_locations,
-        controller_input_size=controller_input_size,
-        controller_output_size=controller_output_size,
-        batch_size=batch_size,
-    ).to(device)
+    dntm = build_model(address_size, batch_size, content_size, controller_input_size, controller_output_size, device,
+                       n_locations)
 
     loss_fn = torch.nn.NLLLoss()
     opt = torch.optim.Adam(dntm.parameters(), lr=lr)
-
-    train_accuracy = Accuracy().to(device)
-    test_accuracy = Accuracy().to(device)
 
     with mlflow.start_run(run_name=run_name):
         mlflow.log_params({
@@ -83,36 +68,7 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
 
         torch.autograd.set_detect_anomaly(True)
         for epoch in range(epochs):
-            for batch_i, (mnist_images, targets) in enumerate(train_data_loader):
-                logging.debug(f"{torch.cuda.memory_summary()=}")
-
-                logging.info(f"MNIST batch {batch_i}")
-                dntm.zero_grad()
-
-                logging.debug(f"Moving image to GPU")
-                mnist_images, targets = mnist_images.to(device), targets.to(device)
-
-                logging.debug(f"Looping through image pixels")
-                for pixel_i, pixels in enumerate(mnist_images.T):
-                    logging.debug(f"Pixel {pixel_i}")
-                    __, output = dntm(pixels.view(1, batch_size))
-
-                logging.debug(f"Computing loss value")
-                loss_value = loss_fn(output.T, targets)
-
-                logging.debug(f"Computing gradients")
-                loss_value.backward()
-
-                logging.debug(f"Running optimization step")
-                opt.step()
-
-                logging.debug(f"Resetting the memory")
-                dntm.memory.reset_memory_content()
-
-                writer.add_scalar("Loss/train", loss_value, batch_i)
-                batch_accuracy = train_accuracy(output.T, targets)
-                writer.add_scalar("Accuracy/train", batch_accuracy, batch_i)
-            train_accuracy.reset()
+            output = training_step(batch_size, device, dntm, loss_fn, opt, train_data_loader, writer)
         logging.info(f"Saving the model")
         torch.save(dntm.state_dict(), f"../models/{run_name}.pth")
 
@@ -120,22 +76,83 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
         test_data_loader = DataLoader(seq_mnist_test, batch_size=batch_size)
 
         logging.info("Starting testing phase")
-        dntm.eval()
-        for batch_i, (mnist_images, targets) in enumerate(test_data_loader):
-            logging.info(f"MNIST batch {batch_i}")
+        test_step(batch_size, device, dntm, output, test_data_loader)
 
-            logging.debug(f"Moving image to GPU")
-            mnist_images, targets = mnist_images.to(device), targets.to(device)
 
-            logging.debug(f"Looping through image pixels")
-            for pixel_i, pixels in enumerate(mnist_images.T):
-                logging.debug(f"Pixel {pixel_i}")
-                __, output = dntm(pixels.view(1, batch_size))
+def build_model(address_size, batch_size, content_size, controller_input_size, controller_output_size, device,
+                n_locations):
+    dntm_memory = DynamicNeuralTuringMachineMemory(
+        n_locations=n_locations,
+        content_size=content_size,
+        address_size=address_size,
+        controller_input_size=controller_input_size,
+        batch_size=batch_size,
+    )
+    dntm = DynamicNeuralTuringMachine(
+        memory=dntm_memory,
+        controller_hidden_state_size=n_locations,
+        controller_input_size=controller_input_size,
+        controller_output_size=controller_output_size,
+        batch_size=batch_size,
+    ).to(device)
+    return dntm
 
-            dntm.memory.reset_memory_content()
-            batch_accuracy = test_accuracy(output.T, targets)
-        test_accuracy = test_accuracy.compute()
-        mlflow.log_metric(key="test_accuracy", value=test_accuracy.item())
+
+def test_step(batch_size, device, dntm, output, test_data_loader):
+    test_accuracy = Accuracy().to(device)
+
+    dntm.eval()
+    for batch_i, (mnist_images, targets) in enumerate(test_data_loader):
+        logging.info(f"MNIST batch {batch_i}")
+
+        logging.debug(f"Moving image to GPU")
+        mnist_images, targets = mnist_images.to(device), targets.to(device)
+
+        logging.debug(f"Looping through image pixels")
+        for pixel_i, pixels in enumerate(mnist_images.T):
+            logging.debug(f"Pixel {pixel_i}")
+            __, output = dntm(pixels.view(1, batch_size))
+
+        dntm.memory.reset_memory_content()
+        batch_accuracy = test_accuracy(output.T, targets)
+    test_accuracy = test_accuracy.compute()
+    mlflow.log_metric(key="test_accuracy", value=test_accuracy.item())
+
+
+def training_step(batch_size, device, dntm, loss_fn, opt, train_data_loader, writer):
+    train_accuracy = Accuracy().to(device)
+
+    for batch_i, (mnist_images, targets) in enumerate(train_data_loader):
+        logging.debug(f"{torch.cuda.memory_summary()=}")
+
+        logging.info(f"MNIST batch {batch_i}")
+        dntm.zero_grad()
+
+        logging.debug(f"Moving image to GPU")
+        mnist_images, targets = mnist_images.to(device), targets.to(device)
+
+        logging.debug(f"Looping through image pixels")
+        for pixel_i, pixels in enumerate(mnist_images.T):
+            logging.debug(f"Pixel {pixel_i}")
+            __, output = dntm(pixels.view(1, batch_size))
+
+        logging.debug(f"Computing loss value")
+        loss_value = loss_fn(output.T, targets)
+
+        logging.debug(f"Computing gradients")
+        loss_value.backward()
+
+        logging.debug(f"Running optimization step")
+        opt.step()
+
+        logging.debug(f"Resetting the memory")
+        dntm.memory.reset_memory_content()
+
+        writer.add_scalar("Loss/train", loss_value, batch_i)
+        batch_accuracy = train_accuracy(output.T, targets)
+        writer.add_scalar("Accuracy/train", batch_accuracy, batch_i)
+    train_accuracy.reset()
+    return output
 
 
 if __name__ == "__main__":
