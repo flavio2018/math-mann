@@ -6,12 +6,8 @@ from humanfriendly import format_timespan
 import logging
 
 from src.utils import configure_logging, get_str_timestamp
+from src.data.perm_seq_mnist import get_seq_mnist
 
-from toolz.functoolz import compose_left
-
-import numpy as np
-from torchvision import datasets
-from torchvision.transforms import Lambda
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 import mlflow
@@ -26,18 +22,19 @@ from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachi
 @click.option("--run_name", type=str, default="")
 @click.option("--lr", type=float, default=0.00001)
 @click.option("--batch_size", type=int, default=4)
+@click.option("--epochs", type=int, default=10)
 @click.option("--n_locations", type=int, default=750)
 @click.option("--content_size", type=int, default=32)
 @click.option("--address_size", type=int, default=8)
 @Timer(text=lambda secs: f"Took {format_timespan(secs)}")
-def click_wrapper(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size):
+def click_wrapper(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size, epochs):
     """This wrapper is needed to
     a) import the main method of the script in other scripts, to enable reuse and modularity
     b) allow to access the name of the function in the main method"""
-    train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size)
+    train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size, epochs)
 
 
-def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size):
+def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size, epochs):
     run_name = "_".join([train_dntm_pmnist.__name__, get_str_timestamp(), run_name])
 
     configure_logging(loglevel, run_name)
@@ -45,33 +42,9 @@ def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_siz
     mlflow.set_experiment(experiment_name="dntm_pmnist")
     writer = SummaryWriter(log_dir=f"../logs/tensorboard/{run_name}")
 
-    def _convert_to_float32(x: np.array):
-        return x.astype(np.float32)
-
-    def _flatten(x: np.array):
-        return x.flatten()
-
-    def _shuffle_digit_array(x):
-        rng = np.random.default_rng(seed=123456)
-        # ^ the permutation should be the same for all digits
-        rng.shuffle(x)
-        return x
-
-    transforms = compose_left(
-         np.array,
-         _flatten,
-         _convert_to_float32,
-         #_shuffle_digit_array,
-    )
-
-    pmnist = datasets.MNIST(
-        root="../data/external",
-        train=True,
-        download=True,
-        transform=Lambda(lambda x: transforms(x)),
-    )
-
-    data_loader = DataLoader(pmnist, batch_size=batch_size)
+    seq_mnist_train, seq_mnist_test = get_seq_mnist()
+    train_data_loader = DataLoader(seq_mnist_train, batch_size=batch_size)
+    device = torch.device("cuda", 0)
 
     controller_input_size = 1
     controller_output_size = 10
@@ -88,14 +61,16 @@ def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_siz
         controller_input_size=controller_input_size,
         controller_output_size=controller_output_size,
         batch_size=batch_size,
-    ).to("cuda")
+    ).to(device)
 
     loss_fn = torch.nn.NLLLoss()
     opt = torch.optim.Adam(dntm.parameters(), lr=lr)
 
     with mlflow.start_run(run_name=run_name):
-        mlflow.log_param("learning_rate", lr)
         mlflow.log_params({
+                "learning_rate": lr,
+                "batch_size": batch_size,
+                "epochs": epochs,
                 "n_locations": n_locations,
                 "content_size": content_size,
                 "address_size": address_size,
@@ -103,17 +78,16 @@ def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_siz
                 "controller_output_size": controller_output_size
             })
 
-        # TODO handle minibatches?
         torch.autograd.set_detect_anomaly(True)
-        for epoch in range(2):
-            for batch_i, (mnist_images, targets) in enumerate(data_loader):
+        for epoch in range(epochs):
+            for batch_i, (mnist_images, targets) in enumerate(train_data_loader):
                 logging.debug(f"{torch.cuda.memory_summary()=}")
 
                 logging.info(f"MNIST batch {batch_i}")
                 dntm.zero_grad()
 
                 logging.debug(f"Moving image to GPU")
-                mnist_images, targets = mnist_images.to("cuda"), targets.to("cuda")
+                mnist_images, targets = mnist_images.to(device), targets.to(device)
 
                 logging.debug(f"Looping through image pixels")
                 for pixel_i, pixels in enumerate(mnist_images.T):
