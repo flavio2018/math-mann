@@ -10,6 +10,7 @@ from src.data.perm_seq_mnist import get_seq_mnist
 
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from torchmetrics.classification import Accuracy
 import mlflow
 
 
@@ -66,6 +67,8 @@ def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_siz
     loss_fn = torch.nn.NLLLoss()
     opt = torch.optim.Adam(dntm.parameters(), lr=lr)
 
+    train_accuracy = Accuracy().to(device)
+
     with mlflow.start_run(run_name=run_name):
         mlflow.log_params({
                 "learning_rate": lr,
@@ -105,8 +108,12 @@ def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_siz
 
                 logging.debug(f"Resetting the memory")
                 dntm.memory.reset_memory_content()
+
                 logging.info(f"{batch_i=}: {loss_value=}")
                 writer.add_scalar("Loss/train", loss_value, batch_i)
+                batch_accuracy = train_accuracy(output.T, targets)
+                writer.add_scalar("Accuracy/train", batch_accuracy, batch_i)
+            train_accuracy.reset()
 
 
 if __name__ == "__main__":
