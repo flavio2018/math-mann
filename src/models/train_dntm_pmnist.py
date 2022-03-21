@@ -13,7 +13,6 @@ from torch.utils.tensorboard import SummaryWriter
 from torchmetrics.classification import Accuracy
 import mlflow
 
-
 from src.models.DynamicNeuralTuringMachine import DynamicNeuralTuringMachine
 from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachineMemory
 
@@ -32,11 +31,11 @@ def click_wrapper(loglevel, run_name, n_locations, content_size, address_size, l
     """This wrapper is needed to
     a) import the main method of the script in other scripts, to enable reuse and modularity
     b) allow to access the name of the function in the main method"""
-    train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size, epochs)
+    train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size, epochs)
 
 
-def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size, epochs):
-    run_name = "_".join([train_dntm_pmnist.__name__, get_str_timestamp(), run_name])
+def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size, epochs):
+    run_name = "_".join([train_and_test_dntm_smnist.__name__, get_str_timestamp(), run_name])
 
     configure_logging(loglevel, run_name)
     mlflow.set_tracking_uri("file:../logs/mlruns/")
@@ -68,6 +67,7 @@ def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_siz
     opt = torch.optim.Adam(dntm.parameters(), lr=lr)
 
     train_accuracy = Accuracy().to(device)
+    test_accuracy = Accuracy().to(device)
 
     with mlflow.start_run(run_name=run_name):
         mlflow.log_params({
@@ -109,11 +109,33 @@ def train_dntm_pmnist(loglevel, run_name, n_locations, content_size, address_siz
                 logging.debug(f"Resetting the memory")
                 dntm.memory.reset_memory_content()
 
-                logging.info(f"{batch_i=}: {loss_value=}")
                 writer.add_scalar("Loss/train", loss_value, batch_i)
                 batch_accuracy = train_accuracy(output.T, targets)
                 writer.add_scalar("Accuracy/train", batch_accuracy, batch_i)
             train_accuracy.reset()
+        logging.info(f"Saving the model")
+        torch.save(dntm.state_dict(), f"../models/{run_name}.pth")
+
+        del train_data_loader
+        test_data_loader = DataLoader(seq_mnist_test, batch_size=batch_size)
+
+        logging.info("Starting testing phase")
+        dntm.eval()
+        for batch_i, (mnist_images, targets) in enumerate(test_data_loader):
+            logging.info(f"MNIST batch {batch_i}")
+
+            logging.debug(f"Moving image to GPU")
+            mnist_images, targets = mnist_images.to(device), targets.to(device)
+
+            logging.debug(f"Looping through image pixels")
+            for pixel_i, pixels in enumerate(mnist_images.T):
+                logging.debug(f"Pixel {pixel_i}")
+                __, output = dntm(pixels.view(1, batch_size))
+
+            dntm.memory.reset_memory_content()
+            batch_accuracy = test_accuracy(output.T, targets)
+        test_accuracy = test_accuracy.compute()
+        mlflow.log_metric(key="test_accuracy", value=test_accuracy.item())
 
 
 if __name__ == "__main__":
