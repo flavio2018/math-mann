@@ -4,6 +4,7 @@ pytest
 scipy>=1.6.0
 toolz
 torch
+torchmetrics
 torchvision
 trax==1.4.1
 
