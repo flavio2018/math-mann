@@ -32,15 +32,16 @@ class DynamicNeuralTuringMachine(nn.Module):
         if num_addressing_steps < 1:
             raise ValueError(f"num_addressing_steps should be at least 1, received: {num_addressing_steps}")
 
-        logging.debug(f"{self.controller_hidden_state.isnan().any()=}")
-        logging.debug(f"{self.controller_hidden_state.mean()=}")
-        logging.debug(f"{self.controller_hidden_state.max()=}")
-        logging.debug(f"{self.controller_hidden_state.min()=}")
-        logging.debug(f"{self.memory.address_vector.isnan().any()=}")
+        with torch.no_grad():
+            logging.debug(f"{self.controller_hidden_state.isnan().any()=}")
+            logging.debug(f"{self.controller_hidden_state.mean()=}")
+            logging.debug(f"{self.controller_hidden_state.max()=}")
+            logging.debug(f"{self.controller_hidden_state.min()=}")
+            logging.debug(f"{self.memory.address_vector.isnan().any()=}")
+
         for __ in range(num_addressing_steps):
             self.memory.address_memory(self.controller_hidden_state)
             memory_reading = self.memory.read()
-            # print(f"{memory_reading=}")
             self.controller_hidden_state = self.controller(torch.cat((x, memory_reading)).T,
                                                            self.controller_hidden_state.T).T.detach()
             # ^ very hacky solution, should be improved
