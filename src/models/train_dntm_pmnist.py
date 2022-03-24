@@ -123,7 +123,7 @@ def training_step(batch_size, device, dntm, loss_fn, opt, train_data_loader, wri
     train_accuracy = Accuracy().to(device)
 
     for batch_i, (mnist_images, targets) in enumerate(train_data_loader):
-        logging.debug(f"{torch.cuda.memory_summary()=}")
+        # logging.debug(f"{torch.cuda.memory_summary()=}")
 
         logging.info(f"MNIST batch {batch_i}")
         dntm.zero_grad()
