@@ -25,37 +25,33 @@ smnist_transforms = compose_left(
     np.array,
     _flatten,
     _convert_to_float32,
-    # _shuffle_digit_array,
 )
 
 pmnist_transforms = compose_left(
     np.array,
     _flatten,
     _convert_to_float32,
-    # _shuffle_digit_array,
+    _shuffle_digit_array,
 )
 
 
-def get_perm_mnist():
-    return get_dataset(pmnist_transforms)
+def get_dataset(permute):
+    if permute:
+        transforms = pmnist_transforms
+    else:
+        transforms = smnist_transforms
 
-
-def get_seq_mnist():
-    return get_dataset(smnist_transforms)
-
-
-def get_dataset(transforms):
-    pmnist_train = datasets.MNIST(
+    train = datasets.MNIST(
         root="../data/external",
         train=True,
         download=True,
         transform=Lambda(lambda x: transforms(x)),
     )
 
-    pmnist_test = datasets.MNIST(
+    test = datasets.MNIST(
         root="../data/external",
         train=False,
         download=True,
         transform=Lambda(lambda x: transforms(x)),
     )
-    return pmnist_train, pmnist_test
+    return train, test

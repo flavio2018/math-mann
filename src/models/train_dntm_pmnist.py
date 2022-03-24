@@ -6,7 +6,7 @@ from humanfriendly import format_timespan
 import logging
 
 from src.utils import configure_logging, get_str_timestamp
-from src.data.perm_seq_mnist import get_seq_mnist
+from src.data.perm_seq_mnist import get_dataset
 
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -26,15 +26,15 @@ from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachi
 @click.option("--n_locations", type=int, default=750)
 @click.option("--content_size", type=int, default=32)
 @click.option("--address_size", type=int, default=8)
+@click.option("--permute", type=bool, default=False)
 @Timer(text=lambda secs: f"Took {format_timespan(secs)}")
-def click_wrapper(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size, epochs):
-    """This wrapper is needed to
-    a) import the main method of the script in other scripts, to enable reuse and modularity
-    b) allow to access the name of the function in the main method"""
-    train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size, epochs)
+def click_wrapper(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size, epochs, permute):
+    train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, address_size,
+                               lr, batch_size, epochs, permute)
 
 
-def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size, epochs):
+def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, address_size,
+                               lr, batch_size, epochs, permute):
     run_name = "_".join([train_and_test_dntm_smnist.__name__, get_str_timestamp(), run_name])
 
     configure_logging(loglevel, run_name)
@@ -42,8 +42,8 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
     mlflow.set_experiment(experiment_name="dntm_pmnist")
     writer = SummaryWriter(log_dir=f"../logs/tensorboard/{run_name}")
 
-    seq_mnist_train, seq_mnist_test = get_seq_mnist()
-    train_data_loader = DataLoader(seq_mnist_train, batch_size=batch_size)
+    train, test = get_dataset(permute)
+    train_data_loader = DataLoader(train, batch_size=batch_size)
     device = torch.device("cuda", 0)
 
     controller_input_size = 1
@@ -73,7 +73,7 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
         torch.save(dntm.state_dict(), f"../models/{run_name}.pth")
 
         del train_data_loader
-        test_data_loader = DataLoader(seq_mnist_test, batch_size=batch_size)
+        test_data_loader = DataLoader(test, batch_size=batch_size)
 
         logging.info("Starting testing phase")
         test_step(batch_size, device, dntm, output, test_data_loader)
