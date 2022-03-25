@@ -6,7 +6,7 @@ import logging
 
 
 class DynamicNeuralTuringMachineMemory(nn.Module):
-    def __init__(self, n_locations, content_size, address_size, controller_input_size, batch_size=1):
+    def __init__(self, n_locations, content_size, address_size, controller_input_size):
         """Instantiate the memory.
         n_locations: number of memory locations
         content_size: size of the content part of memory locations
@@ -29,7 +29,6 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         # LRU parameters (u_gamma, b_gamma)
         self.b_lru = nn.Parameter(torch.zeros(1))
         self.u_lru = nn.Parameter(torch.zeros(size=(n_locations, 1)))
-        self.register_buffer("exp_mov_avg_similarity", torch.zeros(size=(n_locations, batch_size)))
 
         # erase parameters (generate e_t)
         self.W_erase = nn.Parameter(torch.zeros(size=(content_size, n_locations)))
@@ -110,6 +109,12 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         """This method exists to implement the memory reset at the beginning of each episode."""
         self.memory_contents.fill_(0)
         # self.memory_contents = torch.zeros_like(self.memory_contents)  # alternative
+
+    def reshape_and_reset_exp_mov_avg_sim(self, batch_size, device):
+        with torch.no_grad():
+            n_locations = self.memory_addresses.shape[0]
+        self.register_buffer("exp_mov_avg_similarity", torch.zeros(size=(n_locations, batch_size)))
+        self.exp_mov_avg_similarity = self.exp_mov_avg_similarity.to(device)
 
     def forward(self, x):
         raise RuntimeError("It makes no sense to call the memory module on its own. "

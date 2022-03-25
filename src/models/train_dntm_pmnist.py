@@ -48,7 +48,7 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
 
     controller_input_size = 1
     controller_output_size = 10
-    dntm = build_model(address_size, batch_size, content_size, controller_input_size, controller_output_size, device,
+    dntm = build_model(address_size, content_size, controller_input_size, controller_output_size, device,
                        n_locations)
 
     loss_fn = torch.nn.NLLLoss()
@@ -68,7 +68,8 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
 
         torch.autograd.set_detect_anomaly(True)
         for epoch in range(epochs):
-            output = training_step(batch_size, device, dntm, loss_fn, opt, train_data_loader, writer)
+            logging.info(f"Epoch {epoch}")
+            output = training_step(device, dntm, loss_fn, opt, train_data_loader, writer)
         logging.info(f"Saving the model")
         torch.save(dntm.state_dict(), f"../models/{run_name}.pth")
 
@@ -76,34 +77,35 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
         test_data_loader = DataLoader(test, batch_size=batch_size)
 
         logging.info("Starting testing phase")
-        test_step(batch_size, device, dntm, output, test_data_loader)
+        test_step(device, dntm, output, test_data_loader)
 
 
-def build_model(address_size, batch_size, content_size, controller_input_size, controller_output_size, device,
+def build_model(address_size, content_size, controller_input_size, controller_output_size, device,
                 n_locations):
     dntm_memory = DynamicNeuralTuringMachineMemory(
         n_locations=n_locations,
         content_size=content_size,
         address_size=address_size,
-        controller_input_size=controller_input_size,
-        batch_size=batch_size,
+        controller_input_size=controller_input_size
     )
     dntm = DynamicNeuralTuringMachine(
         memory=dntm_memory,
         controller_hidden_state_size=n_locations,
         controller_input_size=controller_input_size,
-        controller_output_size=controller_output_size,
-        batch_size=batch_size,
+        controller_output_size=controller_output_size
     ).to(device)
     return dntm
 
 
-def test_step(batch_size, device, dntm, output, test_data_loader):
+def test_step(device, dntm, output, test_data_loader):
     test_accuracy = Accuracy().to(device)
 
     dntm.eval()
     for batch_i, (mnist_images, targets) in enumerate(test_data_loader):
         logging.info(f"MNIST batch {batch_i}")
+
+        dntm.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
+        dntm.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
 
         logging.debug(f"Moving image to GPU")
         mnist_images, targets = mnist_images.to(device), targets.to(device)
@@ -111,7 +113,8 @@ def test_step(batch_size, device, dntm, output, test_data_loader):
         logging.debug(f"Looping through image pixels")
         for pixel_i, pixels in enumerate(mnist_images.T):
             logging.debug(f"Pixel {pixel_i}")
-            __, output = dntm(pixels.view(1, batch_size))
+            __, output = dntm(pixels.view(1, -1))
+            break
 
         dntm.memory.reset_memory_content()
         batch_accuracy = test_accuracy(output.T, targets)
@@ -119,7 +122,7 @@ def test_step(batch_size, device, dntm, output, test_data_loader):
     mlflow.log_metric(key="test_accuracy", value=test_accuracy.item())
 
 
-def training_step(batch_size, device, dntm, loss_fn, opt, train_data_loader, writer):
+def training_step(device, dntm, loss_fn, opt, train_data_loader, writer):
     train_accuracy = Accuracy().to(device)
 
     for batch_i, (mnist_images, targets) in enumerate(train_data_loader):
@@ -127,6 +130,8 @@ def training_step(batch_size, device, dntm, loss_fn, opt, train_data_loader, wri
 
         logging.info(f"MNIST batch {batch_i}")
         dntm.zero_grad()
+        dntm.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
+        dntm.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
 
         logging.debug(f"Moving image to GPU")
         mnist_images, targets = mnist_images.to(device), targets.to(device)
@@ -134,7 +139,7 @@ def training_step(batch_size, device, dntm, loss_fn, opt, train_data_loader, wri
         logging.debug(f"Looping through image pixels")
         for pixel_i, pixels in enumerate(mnist_images.T):
             logging.debug(f"Pixel {pixel_i}")
-            __, output = dntm(pixels.view(1, batch_size))
+            __, output = dntm(pixels.view(1, -1))
 
         logging.debug(f"Computing loss value")
         loss_value = loss_fn(output.T, targets)

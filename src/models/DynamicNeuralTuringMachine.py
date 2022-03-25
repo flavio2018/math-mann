@@ -17,14 +17,13 @@ import logging
 
 
 class DynamicNeuralTuringMachine(nn.Module):
-    def __init__(self, memory, controller_hidden_state_size, controller_input_size, controller_output_size=10, batch_size=1):
+    def __init__(self, memory, controller_hidden_state_size, controller_input_size, controller_output_size=10):
         super(DynamicNeuralTuringMachine, self).__init__()
         self.add_module("memory", memory)
         full_controller_input_size = controller_input_size + memory.overall_memory_size
         self.controller = M.GRUCell(input_size=full_controller_input_size, hidden_size=controller_hidden_state_size)
         self.W_output = nn.Parameter(torch.zeros(controller_output_size, controller_hidden_state_size))
         self.b_output = nn.Parameter(torch.zeros(controller_output_size, 1))
-        self.register_buffer("controller_hidden_state", torch.zeros(size=(controller_hidden_state_size, batch_size)))
 
         self._init_parameters(init_function=nn.init.xavier_uniform_)
 
@@ -64,3 +63,8 @@ class DynamicNeuralTuringMachine(nn.Module):
                 else:
                     init_function(parameter)
 
+    def reshape_and_reset_hidden_states(self, batch_size, device):
+        with torch.no_grad():
+            controller_hidden_state_size = self.W_output.shape[1]
+        self.register_buffer("controller_hidden_state", torch.zeros(size=(controller_hidden_state_size, batch_size)))
+        self.controller_hidden_state = self.controller_hidden_state.to(device)
