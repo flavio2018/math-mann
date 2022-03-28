@@ -36,11 +36,10 @@ class DynamicNeuralTuringMachine(nn.Module):
             logging.debug(f"{self.controller_hidden_state.mean()=}")
             logging.debug(f"{self.controller_hidden_state.max()=}")
             logging.debug(f"{self.controller_hidden_state.min()=}")
-            logging.debug(f"{self.memory.address_vector.isnan().any()=}")
 
         for __ in range(num_addressing_steps):
-            self.memory.address_memory(self.controller_hidden_state)
-            memory_reading = self.memory.read()
+            memory_reading = self.memory.read(self.controller_hidden_state)
+            self.memory.update(self.controller_hidden_state, x)
             self.controller_hidden_state = self.controller(torch.cat((x, memory_reading)).T,
                                                            self.controller_hidden_state.T).T.detach()
             # ^ very hacky solution, should be improved

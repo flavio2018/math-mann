@@ -40,15 +40,14 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         self.u_content_alpha = nn.Parameter(torch.zeros(size=(1, n_locations+controller_input_size)))
         self.b_content_alpha = nn.Parameter(torch.zeros(1))
 
-        # address parameters w
-        self.address_vector = nn.Parameter(torch.zeros(size=(n_locations, 1)))
-
-    def read(self):
-        return self._full_memory_view()[:-1, :].T @ self.address_vector[:-1]  # this implements the NO-OP memory location
+    def read(self, controller_hidden_state):
+        read_weights = self._address_memory(controller_hidden_state)
+        return self._full_memory_view()[:-1, :].T @ read_weights[:-1]  # this implements the NO-OP memory location
         # TODO add in tests NO-OP
 
     def update(self, controller_hidden_state, controller_input):
-        erase_vector = self.W_erase @ controller_hidden_state + self.b_erase
+        write_weights = self._address_memory(controller_hidden_state)
+        erase_vector = self.W_erase @ controller_hidden_state + self.b_erase  # TODO MLP
 
         alpha = self.u_content_alpha @ torch.cat((controller_hidden_state, controller_input)) + self.b_content_alpha
 
@@ -57,21 +56,21 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
 
         with torch.no_grad():
             self.memory_contents = (self.memory_contents
-                                    - self.address_vector @ erase_vector.T
-                                    + self.address_vector @ candidate_content_vector.T)
+                                    - write_weights @ erase_vector.T
+                                    + write_weights @ candidate_content_vector.T)
             logging.debug(f"{erase_vector.isnan().any()=}")
             logging.debug(f"{alpha.isnan().any()=}")
             logging.debug(f"{candidate_content_vector.isnan().any()=}")
             logging.debug(f"{self.memory_contents.element_size() * self.memory_contents.nelement()=}")
 
-    def address_memory(self, controller_hidden_state):
+    def _address_memory(self, controller_hidden_state):
         query = self.W_query.T @ controller_hidden_state + self.b_query
 
         sharpening_beta = F.softplus(self.u_sharpen.T @ controller_hidden_state + self.b_sharpen) + 1
 
         similarity_vector = self._compute_similarity(query, sharpening_beta)
 
-        self.address_vector = self._apply_lru_addressing(similarity_vector, controller_hidden_state)
+        address_vector = self._apply_lru_addressing(similarity_vector, controller_hidden_state)
 
         with torch.no_grad():
             logging.debug(f"{query.isnan().any()=}")
@@ -80,7 +79,9 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
             logging.debug(f"{query.min()=}")
             logging.debug(f"{sharpening_beta.isnan().any()=}")
             logging.debug(f"{similarity_vector.isnan().any()=}")
-            logging.debug(f"{self.address_vector.isnan().any()=}")
+            logging.debug(f"{address_vector.isnan().any()=}")
+
+        return address_vector
 
     def _full_memory_view(self):
         return torch.cat((self.memory_addresses, self.memory_contents), dim=1)
