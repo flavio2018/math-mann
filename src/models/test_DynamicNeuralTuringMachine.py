@@ -5,15 +5,15 @@ from src.models.DynamicNeuralTuringMachine import DynamicNeuralTuringMachine
 from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachineMemory
 
 
-CONTROLLER_INPUT_SIZE = 150
+CONTROLLER_INPUT_SIZE = 1
 CONTROLLER_OUTPUT_SIZE = 10
 BATCH_SIZE = 4
 
 
 def _init_dntm_memory_parameters():
-    n_locations = 100
-    content_size = 120
-    address_size = 20
+    n_locations = 7
+    content_size = 6
+    address_size = 2
     return {
         "n_locations": n_locations,
         "content_size": content_size,
@@ -65,15 +65,16 @@ def test_dntm_memory_address_vector_contains_no_nan_values():
     assert not address_vector.isnan().any()
 
 
-def test_dntm_memory_address_vector_sum_to_one():
-    memory_parameters = _init_dntm_memory_parameters()
-    mock_hidden_state = _mock_controller_hidden_state()
-    dntm_memory = DynamicNeuralTuringMachineMemory(
-        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE)
-    with torch.no_grad():
-        dntm_memory.reshape_and_reset_exp_mov_avg_sim(batch_size=BATCH_SIZE, device=torch.device("cpu"))
-        address_vector = dntm_memory._address_memory(mock_hidden_state)
-    assert address_vector.sum().item() == pytest.approx(BATCH_SIZE)
+# this test is no longer meaningful with the new implementation of the NO-OP
+# def test_dntm_memory_address_vector_sum_to_one():
+#     memory_parameters = _init_dntm_memory_parameters()
+#     mock_hidden_state = _mock_controller_hidden_state()
+#     dntm_memory = DynamicNeuralTuringMachineMemory(
+#         **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE)
+#     with torch.no_grad():
+#         dntm_memory.reshape_and_reset_exp_mov_avg_sim(batch_size=BATCH_SIZE, device=torch.device("cpu"))
+#         address_vector = dntm_memory._address_memory(mock_hidden_state)
+#     assert address_vector.sum().item() == pytest.approx(BATCH_SIZE)
 
 
 def test_dntm_memory_contents_shape_doesnt_change_after_update():

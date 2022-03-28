@@ -42,7 +42,7 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
 
     def read(self, controller_hidden_state):
         read_weights = self._address_memory(controller_hidden_state)
-        return self._full_memory_view()[:-1, :].T @ read_weights[:-1]  # this implements the NO-OP memory location
+        return self._full_memory_view().T @ read_weights
         # TODO add in tests NO-OP
 
     def update(self, controller_hidden_state, controller_input):
@@ -71,6 +71,8 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         similarity_vector = self._compute_similarity(query, sharpening_beta)
 
         address_vector = self._apply_lru_addressing(similarity_vector, controller_hidden_state)
+
+        address_vector = self._apply_no_op_transformation(address_vector)
 
         with torch.no_grad():
             logging.debug(f"{query.isnan().any()=}")
@@ -105,6 +107,14 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         with torch.no_grad():
             self.exp_mov_avg_similarity = 0.1 * self.exp_mov_avg_similarity + 0.9 * similarity_vector
         return nn.Parameter(lru_similarity_vector)
+
+    @staticmethod
+    def _apply_no_op_transformation(address_vector):
+        """This method implements the NO-OP memory cell, i.e. a cell that can be addressed by the controller
+        when it does not want to use the memory. Indeed, one element of the address vector is always set to zero,
+        so that the corresponding memory location is never read or written."""
+        address_vector[-1, :] = 0
+        return address_vector
 
     def reset_memory_content(self):
         """This method exists to implement the memory reset at the beginning of each episode."""
