@@ -40,13 +40,18 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         self.u_content_alpha = nn.Parameter(torch.zeros(size=(1, n_locations+controller_input_size)))
         self.b_content_alpha = nn.Parameter(torch.zeros(1))
 
+        # read & write weights
+        self.read_weights = nn.Parameter(torch.zeros(size=(n_locations, 1)))
+        self.write_weights = nn.Parameter(torch.zeros(size=(n_locations, 1)))
+
     def read(self, controller_hidden_state):
-        read_weights = self._address_memory(controller_hidden_state)
-        return self._full_memory_view().T @ read_weights
+        self.read_weights = self._address_memory(controller_hidden_state)
+        # this implements the memory NO-OP at reading phase
+        return self._full_memory_view()[:-1, :].T @ self.read_weights[:-1, :]
         # TODO add in tests NO-OP
 
     def update(self, controller_hidden_state, controller_input):
-        write_weights = self._address_memory(controller_hidden_state)
+        self.write_weights = self._address_memory(controller_hidden_state)
         erase_vector = self.W_erase @ controller_hidden_state + self.b_erase  # TODO MLP
 
         alpha = self.u_content_alpha @ torch.cat((controller_hidden_state, controller_input)) + self.b_content_alpha
@@ -55,9 +60,10 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
                                           torch.mul(alpha, self.W_content_input @ controller_input))
 
         with torch.no_grad():
-            self.memory_contents = (self.memory_contents
-                                    - write_weights @ erase_vector.T
-                                    + write_weights @ candidate_content_vector.T)
+            # this implements the memory NO-OP at writing phase
+            self.memory_contents[:-1, :] = (self.memory_contents[:-1, :]
+                                            - self.write_weights[:-1, :] @ erase_vector.T
+                                            + self.write_weights[:-1, :] @ candidate_content_vector.T)
             logging.debug(f"{erase_vector.isnan().any()=}")
             logging.debug(f"{alpha.isnan().any()=}")
             logging.debug(f"{candidate_content_vector.isnan().any()=}")
@@ -71,8 +77,6 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         similarity_vector = self._compute_similarity(query, sharpening_beta)
 
         address_vector = self._apply_lru_addressing(similarity_vector, controller_hidden_state)
-
-        address_vector = self._apply_no_op_transformation(address_vector)
 
         with torch.no_grad():
             logging.debug(f"{query.isnan().any()=}")
@@ -107,14 +111,6 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         with torch.no_grad():
             self.exp_mov_avg_similarity = 0.1 * self.exp_mov_avg_similarity + 0.9 * similarity_vector
         return nn.Parameter(lru_similarity_vector)
-
-    @staticmethod
-    def _apply_no_op_transformation(address_vector):
-        """This method implements the NO-OP memory cell, i.e. a cell that can be addressed by the controller
-        when it does not want to use the memory. Indeed, one element of the address vector is always set to zero,
-        so that the corresponding memory location is never read or written."""
-        address_vector[-1, :] = 0
-        return address_vector
 
     def reset_memory_content(self):
         """This method exists to implement the memory reset at the beginning of each episode."""
