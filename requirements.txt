@@ -3,10 +3,9 @@ mlflow
 pytest
 scipy>=1.6.0
 toolz
-torch
 torchmetrics
-torchvision
-trax==1.4.1
+
+# to use the A5000 nodes a specific pytorch version needs to be installed
 
 # local package
 -e .
