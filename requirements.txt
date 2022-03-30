@@ -4,6 +4,7 @@ mlflow
 notebook
 pytest
 scipy>=1.6.0
+tensorflow_datasets
 toolz
 torch
 torchmetrics
