@@ -1,4 +1,5 @@
 ipython
+ipykernel
 mlflow
 pytest
 scipy>=1.6.0
