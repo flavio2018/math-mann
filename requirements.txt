@@ -5,6 +5,7 @@ notebook
 pytest
 scipy>=1.6.0
 tensorflow_datasets
+tensorflow
 toolz
 torchmetrics
 
