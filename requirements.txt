@@ -5,6 +5,7 @@ mlflow
 notebook
 pytest
 scipy>=1.6.0
+sklearn
 tensorflow_datasets
 tensorflow
 toolz
