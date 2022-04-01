@@ -29,7 +29,7 @@ class DynamicNeuralTuringMachine(nn.Module):
 
     def forward(self, x, num_addressing_steps=1):
 
-        dummy_memory_reading = torch.zeros((self.memory.overall_memory_size, x.shape[1]))
+        dummy_memory_reading = torch.zeros((self.memory.overall_memory_size, x.shape[1]), device=x.device)
 
         if num_addressing_steps < 1:
             raise ValueError(f"num_addressing_steps should be at least 1, received: {num_addressing_steps}")
