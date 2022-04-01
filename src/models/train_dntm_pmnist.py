@@ -5,13 +5,14 @@ from codetiming import Timer
 from humanfriendly import format_timespan
 import logging
 
-from src.utils import configure_logging, get_str_timestamp
+from src.utils import configure_logging, get_str_timestamp, configure_reproducibility, seed_worker
 from src.data.perm_seq_mnist import get_dataset
 
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchmetrics.classification import Accuracy
 import mlflow
+import numpy as np
 
 from src.models.DynamicNeuralTuringMachine import DynamicNeuralTuringMachine
 from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachineMemory
@@ -23,18 +24,19 @@ from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachi
 @click.option("--lr", type=float, default=0.00001)
 @click.option("--batch_size", type=int, default=4)
 @click.option("--epochs", type=int, default=10)
+@click.option("--seed", type=int, default=2147483647)
 @click.option("--n_locations", type=int, default=750)
 @click.option("--content_size", type=int, default=32)
 @click.option("--address_size", type=int, default=8)
 @click.option("--permute", type=bool, default=False)
 @Timer(text=lambda secs: f"Took {format_timespan(secs)}")
-def click_wrapper(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size, epochs, permute):
+def click_wrapper(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size, epochs, permute, seed):
     train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, address_size,
-                               lr, batch_size, epochs, permute)
+                               lr, batch_size, epochs, permute, seed)
 
 
 def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, address_size,
-                               lr, batch_size, epochs, permute):
+                               lr, batch_size, epochs, permute, seed):
     run_name = "_".join([train_and_test_dntm_smnist.__name__, get_str_timestamp(), run_name])
 
     configure_logging(loglevel, run_name)
@@ -42,9 +44,13 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
     mlflow.set_experiment(experiment_name="dntm_pmnist")
     writer = SummaryWriter(log_dir=f"../logs/tensorboard/{run_name}")
 
-    train, test = get_dataset(permute)
-    train_data_loader = DataLoader(train, batch_size=batch_size)
     device = torch.device("cuda", 0)
+    configure_reproducibility(device, seed)
+    train, test = get_dataset(permute, seed)
+    rng = torch.Generator(device=device)
+    rng.manual_seed(seed)
+    train_data_loader = DataLoader(train, batch_size=batch_size,
+                                   worker_init_fn=seed_worker, num_workers=0, generator=rng)  # reproducibility
 
     controller_input_size = 1
     controller_output_size = 10
@@ -130,6 +136,9 @@ def training_step(device, dntm, loss_fn, opt, train_data_loader, writer):
 
         logging.info(f"MNIST batch {batch_i}")
         dntm.zero_grad()
+
+        logging.debug(f"Resetting the memory")
+        dntm.memory.reset_memory_content()
         dntm.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
         dntm.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
 
@@ -149,9 +158,6 @@ def training_step(device, dntm, loss_fn, opt, train_data_loader, writer):
 
         logging.debug(f"Running optimization step")
         opt.step()
-
-        logging.debug(f"Resetting the memory")
-        dntm.memory.reset_memory_content()
 
         writer.add_scalar("Loss/train", loss_value, batch_i)
         batch_accuracy = train_accuracy(output.T, targets)

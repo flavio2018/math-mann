@@ -6,36 +6,31 @@ from torchvision import datasets
 from torchvision.transforms import Lambda
 
 
-def _convert_to_float32(x: np.array):
-    return x.astype(np.float32)
+def get_dataset(permute, seed):
+    def _convert_to_float32(x: np.array):
+        return x.astype(np.float32)
 
+    def _flatten(x: np.array):
+        return x.flatten()
+    
+    def _shuffle_digit_array(x):
+        rng = np.random.default_rng(seed=seed)
+        # ^ the permutation should be the same for all digits
+        rng.shuffle(x)
+        return x
 
-def _flatten(x: np.array):
-    return x.flatten()
-
-
-def _shuffle_digit_array(x):
-    rng = np.random.default_rng(seed=123456)
-    # ^ the permutation should be the same for all digits
-    rng.shuffle(x)
-    return x
-
-
-smnist_transforms = compose_left(
-    np.array,
-    _flatten,
-    _convert_to_float32,
-)
-
-pmnist_transforms = compose_left(
-    np.array,
-    _flatten,
-    _convert_to_float32,
-    _shuffle_digit_array,
-)
-
-
-def get_dataset(permute):
+    smnist_transforms = compose_left(
+        np.array,
+        _flatten,
+        _convert_to_float32,
+    )
+    
+    pmnist_transforms = compose_left(
+        np.array,
+        _flatten,
+        _convert_to_float32,
+        _shuffle_digit_array,
+    )
     if permute:
         transforms = pmnist_transforms
     else:
