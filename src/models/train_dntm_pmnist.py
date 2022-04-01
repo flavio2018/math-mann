@@ -49,7 +49,7 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
     train, test = get_dataset(permute, seed)
     rng = torch.Generator(device=device)
     rng.manual_seed(seed)
-    train_data_loader = DataLoader(train, batch_size=batch_size,
+    train_data_loader = DataLoader(train, batch_size=batch_size, shuffle=False,
                                    worker_init_fn=seed_worker, num_workers=0, generator=rng)  # reproducibility
 
     controller_input_size = 1
