@@ -132,10 +132,13 @@ def training_step(device, dntm, loss_fn, opt, train_data_loader, writer):
     train_accuracy = Accuracy().to(device)
 
     for batch_i, (mnist_images, targets) in enumerate(train_data_loader):
-        # logging.debug(f"{torch.cuda.memory_summary()=}")
 
         logging.info(f"MNIST batch {batch_i}")
         dntm.zero_grad()
+
+        if batch_i == 0:
+            logging.debug(f"Printing inputs in batch {batch_i} just before they enter the model")
+            logging.debug(f"{mnist_images=}")
 
         logging.debug(f"Resetting the memory")
         dntm.memory.reset_memory_content()
@@ -149,6 +152,11 @@ def training_step(device, dntm, loss_fn, opt, train_data_loader, writer):
         for pixel_i, pixels in enumerate(mnist_images.T):
             logging.debug(f"Pixel {pixel_i}")
             __, output = dntm(pixels.view(1, -1))
+
+        if batch_i == 0:
+            logging.debug(f"Predictions and targets on batch {batch_i}:")
+            logging.debug(f"{output.T=}")
+            logging.debug(f"{targets=}")
 
         logging.debug(f"Computing loss value")
         loss_value = loss_fn(output.T, targets)
