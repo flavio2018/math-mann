@@ -28,6 +28,9 @@ class DynamicNeuralTuringMachine(nn.Module):
         self._init_parameters(init_function=nn.init.xavier_uniform_)
 
     def forward(self, x, num_addressing_steps=1):
+
+        dummy_memory_reading = torch.zeros((self.memory.overall_memory_size, x.shape[1]))
+
         if num_addressing_steps < 1:
             raise ValueError(f"num_addressing_steps should be at least 1, received: {num_addressing_steps}")
 
@@ -38,9 +41,9 @@ class DynamicNeuralTuringMachine(nn.Module):
             logging.debug(f"{self.controller_hidden_state.min()=}")
 
         for __ in range(num_addressing_steps):
-            memory_reading = self.memory.read(self.controller_hidden_state)
-            self.memory.update(self.controller_hidden_state, x)
-            self.controller_hidden_state = self.controller(torch.cat((x, memory_reading)).T,
+            # memory_reading = self.memory.read(self.controller_hidden_state)
+            # self.memory.update(self.controller_hidden_state, x)
+            self.controller_hidden_state = self.controller(torch.cat((x, dummy_memory_reading)).T,
                                                            self.controller_hidden_state.T).T.detach()
             # ^ TODO very hacky solution, should be improved
 

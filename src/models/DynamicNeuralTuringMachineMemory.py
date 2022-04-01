@@ -75,8 +75,8 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         sharpening_beta = F.softplus(self.u_sharpen.T @ controller_hidden_state + self.b_sharpen) + 1
 
         similarity_vector = self._compute_similarity(query, sharpening_beta)
-
-        address_vector = self._apply_lru_addressing(similarity_vector, controller_hidden_state)
+        similarity_vector = torch.nn.Parameter(similarity_vector)
+        # address_vector = self._apply_lru_addressing(similarity_vector, controller_hidden_state)
 
         with torch.no_grad():
             logging.debug(f"{query.isnan().any()=}")
@@ -85,9 +85,9 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
             logging.debug(f"{query.min()=}")
             logging.debug(f"{sharpening_beta.isnan().any()=}")
             logging.debug(f"{similarity_vector.isnan().any()=}")
-            logging.debug(f"{address_vector.isnan().any()=}")
+            # logging.debug(f"{address_vector.isnan().any()=}")
 
-        return address_vector
+        return similarity_vector
 
     def _full_memory_view(self):
         return torch.cat((self.memory_addresses, self.memory_contents), dim=1)
