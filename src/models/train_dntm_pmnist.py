@@ -47,6 +47,9 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
     device = torch.device("cuda", 0)
     configure_reproducibility(device, seed)
     train, test = get_dataset(permute, seed)
+
+    train.data, train.labels = train.data[:5], train.labels[:5]  # only for debugging
+
     rng = torch.Generator()
     rng.manual_seed(seed)
     train_data_loader = DataLoader(train, batch_size=batch_size, shuffle=False,
