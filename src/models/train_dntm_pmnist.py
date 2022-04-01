@@ -140,8 +140,8 @@ def training_step(device, dntm, loss_fn, opt, train_data_loader, writer):
         dntm.zero_grad()
 
         if batch_i == 0:
-            logging.debug(f"Printing inputs in batch {batch_i} just before they enter the model")
-            logging.debug(f"{mnist_images=}")
+            for img in mnist_images:
+                writer.add_image(f"Training data batch {batch_i}", img.reshape(28, 28), step=0)
 
         logging.debug(f"Resetting the memory")
         dntm.memory.reset_memory_content()
