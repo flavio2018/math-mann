@@ -78,7 +78,10 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
         torch.autograd.set_detect_anomaly(True)
         for epoch in range(epochs):
             logging.info(f"Epoch {epoch}")
-            output = training_step(device, dntm, loss_fn, opt, train_data_loader, writer)
+            output, loss_value, accuracy = training_step(device, dntm, loss_fn, opt, train_data_loader, writer)
+            writer.add_scalar("Loss/train", loss_value, epoch)
+            writer.add_scalar("Accuracy/train", accuracy, epoch)
+
         logging.info(f"Saving the model")
         torch.save(dntm.state_dict(), f"../models/{run_name}.pth")
 
@@ -170,11 +173,10 @@ def training_step(device, dntm, loss_fn, opt, train_data_loader, writer):
         logging.debug(f"Running optimization step")
         opt.step()
 
-        writer.add_scalar("Loss/train", loss_value, batch_i)
         batch_accuracy = train_accuracy(output.T, targets)
-        writer.add_scalar("Accuracy/train", batch_accuracy, batch_i)
+    accuracy_over_batches = batch_accuracy.compute()
     train_accuracy.reset()
-    return output
+    return output, loss_value, accuracy_over_batches
 
 
 if __name__ == "__main__":
