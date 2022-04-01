@@ -39,13 +39,10 @@ def configure_reproducibility(device, seed):
     - https://discuss.pytorch.org/t/random-seed-initialization/7854/18
     - https://pytorch.org/docs/stable/notes/randomness.html
     """
-    rng = torch.Generator(device=device)
-    rng.manual_seed(seed)
-
     np.random.seed(seed)
     random.seed(seed)
     torch.manual_seed(seed)
-    # if you are suing GPU
+    # if you are using GPU
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
