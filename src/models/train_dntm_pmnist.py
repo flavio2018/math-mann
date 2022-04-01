@@ -141,7 +141,7 @@ def training_step(device, dntm, loss_fn, opt, train_data_loader, writer):
 
         if batch_i == 0:
             for img in mnist_images:
-                writer.add_image(f"Training data batch {batch_i}", img.reshape(28, 28))
+                writer.add_image(f"Training data batch {batch_i}", img.reshape(28, 28), dataformats='HW')
 
         logging.debug(f"Resetting the memory")
         dntm.memory.reset_memory_content()
