@@ -45,7 +45,7 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
     writer = SummaryWriter(log_dir=f"../logs/tensorboard/{run_name}")
 
     device = torch.device("cuda", 0)
-    #configure_reproducibility(device, seed)
+    configure_reproducibility(device, seed)
     train, test = get_dataset(permute, seed)
 
     train.data, train.targets = train.data[:15], train.targets[:15]  # only for debugging
