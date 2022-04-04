@@ -78,7 +78,7 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
         torch.autograd.set_detect_anomaly(True)
         for epoch in range(epochs):
             logging.info(f"Epoch {epoch}")
-            output, loss_value, accuracy = training_step(device, dntm, loss_fn, opt, train_data_loader, writer)
+            output, loss_value, accuracy = training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch, batch_size)
             writer.add_scalar("Loss/train", loss_value, epoch)
             writer.add_scalar("Accuracy/train", accuracy, epoch)
 
@@ -134,7 +134,7 @@ def test_step(device, dntm, output, test_data_loader):
     mlflow.log_metric(key="test_accuracy", value=test_accuracy.item())
 
 
-def training_step(device, dntm, loss_fn, opt, train_data_loader, writer):
+def training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch, batch_size):
     train_accuracy = Accuracy().to(device)
 
     for batch_i, (mnist_images, targets) in enumerate(train_data_loader):
@@ -142,9 +142,10 @@ def training_step(device, dntm, loss_fn, opt, train_data_loader, writer):
         logging.info(f"MNIST batch {batch_i}")
         dntm.zero_grad()
 
-        if batch_i == 0:
-            for img in mnist_images:
-                writer.add_image(f"Training data batch {batch_i}", img.reshape(28, 28), dataformats='HW')
+        if (epoch == 0) and (batch_i == 0):
+            writer.add_images(f"Training data batch {batch_i}",
+                              mnist_images.reshape(batch_size, 28, 28, 1),
+                              dataformats='NHWC')
 
         logging.debug(f"Resetting the memory")
         dntm.memory.reset_memory_content()
@@ -159,9 +160,11 @@ def training_step(device, dntm, loss_fn, opt, train_data_loader, writer):
             logging.debug(f"Pixel {pixel_i}")
             __, output = dntm(pixels.view(1, -1))
 
-        logging.debug(f"Predictions and targets on batch {batch_i}:")
-        logging.debug(f"{output.argmax(axis=0)=}")
-        logging.debug(f"{targets=}")
+        if batch_i == 0:
+            writer.add_text(tag="First batch preds vs targets",
+                            text_string='pred: ' + ' '.join([str(p.item()) for p in output.argmax(axis=0)]) +
+                                        "\n\n target:" + ' '.join([str(t.item()) for t in targets]),
+                            global_step=epoch)
 
         logging.debug(f"Computing loss value")
         loss_value = loss_fn(output.T, targets)
