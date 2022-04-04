@@ -161,7 +161,7 @@ def training_step(device, dntm, loss_fn, opt, train_data_loader, writer):
 
         if batch_i == 0:
             logging.debug(f"Predictions and targets on batch {batch_i}:")
-            logging.debug(f"{output.T=}")
+            logging.debug(f"{output.argmax(axis=0)=}")
             logging.debug(f"{targets=}")
 
         logging.debug(f"Computing loss value")
@@ -173,7 +173,7 @@ def training_step(device, dntm, loss_fn, opt, train_data_loader, writer):
         logging.debug(f"Running optimization step")
         opt.step()
 
-        batch_accuracy = train_accuracy(output.T, targets)
+        batch_accuracy = train_accuracy(output.argmax(axis=0), targets)
     accuracy_over_batches = train_accuracy.compute()
     train_accuracy.reset()
     return output, loss_value, accuracy_over_batches
