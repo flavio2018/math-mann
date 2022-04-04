@@ -45,10 +45,10 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
     writer = SummaryWriter(log_dir=f"../logs/tensorboard/{run_name}")
 
     device = torch.device("cuda", 0)
-    configure_reproducibility(device, seed)
+    #configure_reproducibility(device, seed)
     train, test = get_dataset(permute, seed)
 
-    train.data, train.targets = train.data[:5], train.targets[:5]  # only for debugging
+    train.data, train.targets = train.data[:15], train.targets[:15]  # only for debugging
 
     rng = torch.Generator()
     rng.manual_seed(seed)
@@ -159,10 +159,9 @@ def training_step(device, dntm, loss_fn, opt, train_data_loader, writer):
             logging.debug(f"Pixel {pixel_i}")
             __, output = dntm(pixels.view(1, -1))
 
-        if batch_i == 0:
-            logging.debug(f"Predictions and targets on batch {batch_i}:")
-            logging.debug(f"{output.argmax(axis=0)=}")
-            logging.debug(f"{targets=}")
+        logging.debug(f"Predictions and targets on batch {batch_i}:")
+        logging.debug(f"{output.argmax(axis=0)=}")
+        logging.debug(f"{targets=}")
 
         logging.debug(f"Computing loss value")
         loss_value = loss_fn(output.T, targets)
