@@ -12,6 +12,9 @@ def get_dataset(permute, seed):
 
     def _flatten(x: np.array):
         return x.flatten()
+
+    def _rescale(x: np.array):
+        return x / 255
     
     def _shuffle_digit_array(x):
         rng = np.random.default_rng(seed=seed)
@@ -21,12 +24,14 @@ def get_dataset(permute, seed):
 
     smnist_transforms = compose_left(
         np.array,
+        _rescale,
         _flatten,
         _convert_to_float32,
     )
     
     pmnist_transforms = compose_left(
         np.array,
+        _rescale,
         _flatten,
         _convert_to_float32,
         _shuffle_digit_array,
