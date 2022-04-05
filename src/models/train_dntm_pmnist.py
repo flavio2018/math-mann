@@ -146,6 +146,8 @@ def training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch, 
 
         logging.debug(f"Computing gradients")
         loss_value.backward()
+        logging.debug(f"{dntm.W_output.grad=}")
+        logging.debug(f"{dntm.b_output.grad=}")
 
         logging.debug(f"Running optimization step")
         opt.step()
