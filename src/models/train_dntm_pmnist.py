@@ -109,31 +109,6 @@ def build_model(address_size, content_size, controller_input_size, controller_ou
     return dntm
 
 
-def test_step(device, dntm, output, test_data_loader):
-    test_accuracy = Accuracy().to(device)
-
-    dntm.eval()
-    for batch_i, (mnist_images, targets) in enumerate(test_data_loader):
-        logging.info(f"MNIST batch {batch_i}")
-
-        dntm.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
-        dntm.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
-
-        logging.debug(f"Moving image to GPU")
-        mnist_images, targets = mnist_images.to(device), targets.to(device)
-
-        logging.debug(f"Looping through image pixels")
-        for pixel_i, pixels in enumerate(mnist_images.T):
-            logging.debug(f"Pixel {pixel_i}")
-            __, output = dntm(pixels.view(1, -1))
-            break
-
-        dntm.memory.reset_memory_content()
-        batch_accuracy = test_accuracy(output.T, targets)
-    test_accuracy = test_accuracy.compute()
-    mlflow.log_metric(key="test_accuracy", value=test_accuracy.item())
-
-
 def training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch, batch_size):
     train_accuracy = Accuracy().to(device)
 
@@ -179,6 +154,31 @@ def training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch, 
     accuracy_over_batches = train_accuracy.compute()
     train_accuracy.reset()
     return output, loss_value, accuracy_over_batches
+
+
+def test_step(device, dntm, output, test_data_loader):
+    test_accuracy = Accuracy().to(device)
+
+    dntm.eval()
+    for batch_i, (mnist_images, targets) in enumerate(test_data_loader):
+        logging.info(f"MNIST batch {batch_i}")
+
+        dntm.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
+        dntm.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
+
+        logging.debug(f"Moving image to GPU")
+        mnist_images, targets = mnist_images.to(device), targets.to(device)
+
+        logging.debug(f"Looping through image pixels")
+        for pixel_i, pixels in enumerate(mnist_images.T):
+            logging.debug(f"Pixel {pixel_i}")
+            __, output = dntm(pixels.view(1, -1))
+            break
+
+        dntm.memory.reset_memory_content()
+        batch_accuracy = test_accuracy(output.T, targets)
+    test_accuracy = test_accuracy.compute()
+    mlflow.log_metric(key="test_accuracy", value=test_accuracy.item())
 
 
 if __name__ == "__main__":
