@@ -64,6 +64,11 @@ class DynamicNeuralTuringMachine(nn.Module):
                     init_function(parameter, gain=torch.nn.init.calculate_gain("sigmoid"))
                 else:
                     init_function(parameter)
+                logging.debug(f"{name}: {parameter}")
+            if name == 'b_output':
+                logging.info("Initializing bias b_output")
+                torch.nn.init.constant_(parameter, 0.1)
+                logging.debug(f"{name}: {parameter}")
 
     def reshape_and_reset_hidden_states(self, batch_size, device):
         with torch.no_grad():
