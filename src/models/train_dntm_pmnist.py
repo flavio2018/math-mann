@@ -78,7 +78,8 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
         torch.autograd.set_detect_anomaly(True)
         for epoch in range(epochs):
             logging.info(f"Epoch {epoch}")
-            output, loss_value, accuracy = training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch, batch_size)
+            output, loss_value, accuracy = training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch,
+                                                         batch_size)
             writer.add_scalar("Loss/train", loss_value, epoch)
             writer.add_scalar("Accuracy/train", accuracy, epoch)
 
@@ -109,13 +110,13 @@ def build_model(address_size, content_size, controller_input_size, controller_ou
     return dntm
 
 
-def training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch, batch_size):
+def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch, batch_size):
     train_accuracy = Accuracy().to(device)
 
     for batch_i, (mnist_images, targets) in enumerate(train_data_loader):
 
         logging.info(f"MNIST batch {batch_i}")
-        dntm.zero_grad()
+        model.zero_grad()
 
         if (epoch == 0) and (batch_i == 0):
             writer.add_images(f"Training data batch {batch_i}",
@@ -123,9 +124,9 @@ def training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch, 
                               dataformats='NHWC')
 
         logging.debug(f"Resetting the memory")
-        dntm.memory.reset_memory_content()
-        dntm.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
-        dntm.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
+        model.memory.reset_memory_content()
+        model.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
+        model.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
 
         logging.debug(f"Moving image to GPU")
         mnist_images, targets = mnist_images.to(device), targets.to(device)
@@ -133,7 +134,7 @@ def training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch, 
         logging.debug(f"Looping through image pixels")
         for pixel_i, pixels in enumerate(mnist_images.T):
             logging.debug(f"Pixel {pixel_i}")
-            __, output = dntm(pixels.view(1, -1))
+            __, output = model(pixels.view(1, -1))
 
         if batch_i == 0:
             writer.add_text(tag="First batch preds vs targets",
@@ -146,8 +147,8 @@ def training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch, 
 
         logging.debug(f"Computing gradients")
         loss_value.backward()
-        logging.debug(f"{dntm.W_output.grad=}")
-        logging.debug(f"{dntm.b_output.grad=}")
+        logging.debug(f"{model.W_output.grad=}")
+        logging.debug(f"{model.b_output.grad=}")
 
         logging.debug(f"Running optimization step")
         opt.step()
