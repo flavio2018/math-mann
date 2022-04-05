@@ -60,8 +60,7 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
     dntm = build_model(address_size, content_size, controller_input_size, controller_output_size, device,
                        n_locations)
 
-    # loss_fn = torch.nn.NLLLoss()
-    loss_fn = torch.nn.CrossEntropyLoss()
+    loss_fn = torch.nn.NLLLoss()
     opt = torch.optim.Adam(dntm.parameters(), lr=lr)
 
     with mlflow.start_run(run_name=run_name):
