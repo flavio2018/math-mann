@@ -78,7 +78,10 @@ def train_and_test_recurrent_smnist(loglevel, run_name, lr, batch_size, epochs, 
 
 
 def build_model(input_size, output_size, device):
-    pass
+    return torch.nn.RNN(input_size=input_size,
+                        hidden_size=output_size,
+                        nonlinearity='relu',
+                        batch_first=True).to(device)
 
 
 def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch, batch_size):
@@ -97,10 +100,8 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
         logging.debug(f"Moving image to GPU")
         mnist_images, targets = mnist_images.to(device), targets.to(device)
 
-        logging.debug(f"Looping through image pixels")
-        for pixel_i, pixels in enumerate(mnist_images.T):
-            logging.debug(f"Pixel {pixel_i}")
-            __, output = model(pixels.view(1, -1))
+        logging.debug(f"Feeding pixel sequence to model")
+        output, h_n = model(mnist_images.view(batch_size, 784, 1))
 
         if batch_i == 0:
             writer.add_text(tag="First batch preds vs targets",
@@ -113,8 +114,8 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
 
         logging.debug(f"Computing gradients")
         loss_value.backward()
-        # logging.debug(f"{model.W_output.grad=}")
-        # logging.debug(f"{model.b_output.grad=}")
+        logging.debug(f"{model.weight_hh_l[-1].grad=}")
+        logging.debug(f"{model.bias_hh_l[-1].grad=}")
 
         logging.debug(f"Running optimization step")
         opt.step()
