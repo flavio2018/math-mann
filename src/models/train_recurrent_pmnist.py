@@ -1,4 +1,4 @@
-"""This script trains a DNTM on the PMNIST task."""
+"""This script trains a simple recurrent network on the PMNIST task."""
 import click
 import torch.nn
 from codetiming import Timer
@@ -12,10 +12,6 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchmetrics.classification import Accuracy
 import mlflow
-import numpy as np
-
-from src.models.DynamicNeuralTuringMachine import DynamicNeuralTuringMachine
-from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachineMemory
 
 
 @click.command()
@@ -25,23 +21,18 @@ from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachi
 @click.option("--batch_size", type=int, default=4)
 @click.option("--epochs", type=int, default=10)
 @click.option("--seed", type=int, default=2147483647)
-@click.option("--n_locations", type=int, default=750)
-@click.option("--content_size", type=int, default=32)
-@click.option("--address_size", type=int, default=8)
 @click.option("--permute", type=bool, default=False)
 @Timer(text=lambda secs: f"Took {format_timespan(secs)}")
-def click_wrapper(loglevel, run_name, n_locations, content_size, address_size, lr, batch_size, epochs, permute, seed):
-    train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, address_size,
-                               lr, batch_size, epochs, permute, seed)
+def click_wrapper(loglevel, run_name, lr, batch_size, epochs, permute, seed):
+    train_and_test_recurrent_smnist(loglevel, run_name, lr, batch_size, epochs, permute, seed)
 
 
-def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, address_size,
-                               lr, batch_size, epochs, permute, seed):
-    run_name = "_".join([train_and_test_dntm_smnist.__name__, get_str_timestamp(), run_name])
+def train_and_test_recurrent_smnist(loglevel, run_name, lr, batch_size, epochs, permute, seed):
+    run_name = "_".join([train_and_test_recurrent_smnist.__name__, get_str_timestamp(), run_name])
 
     configure_logging(loglevel, run_name)
     mlflow.set_tracking_uri("file:../logs/mlruns/")
-    mlflow.set_experiment(experiment_name="dntm_pmnist")
+    mlflow.set_experiment(experiment_name="recurrent_pmnist")
     writer = SummaryWriter(log_dir=f"../logs/tensorboard/{run_name}")
 
     device = torch.device("cuda", 0)
@@ -55,59 +46,39 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
     train_data_loader = DataLoader(train, batch_size=batch_size, shuffle=False,
                                    worker_init_fn=seed_worker, num_workers=0, generator=rng)  # reproducibility
 
-    controller_input_size = 1
-    controller_output_size = 10
-    dntm = build_model(address_size, content_size, controller_input_size, controller_output_size, device,
-                       n_locations)
+    input_size = 1
+    output_size = 10
+    model = build_model(input_size, output_size, device)
 
     loss_fn = torch.nn.NLLLoss()
-    opt = torch.optim.Adam(dntm.parameters(), lr=lr)
+    opt = torch.optim.Adam(model.parameters(), lr=lr)
 
     with mlflow.start_run(run_name=run_name):
         mlflow.log_params({
                 "learning_rate": lr,
                 "batch_size": batch_size,
                 "epochs": epochs,
-                "n_locations": n_locations,
-                "content_size": content_size,
-                "address_size": address_size,
-                "controller_input_size": controller_input_size,
-                "controller_output_size": controller_output_size
+                "input_size": input_size,
+                "output_size": output_size
             })
 
         torch.autograd.set_detect_anomaly(True)
         for epoch in range(epochs):
             logging.info(f"Epoch {epoch}")
-            output, loss_value, accuracy = training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch,
+            output, loss_value, accuracy = training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
                                                          batch_size)
             writer.add_scalar("Loss/train", loss_value, epoch)
             writer.add_scalar("Accuracy/train", accuracy, epoch)
-
-        logging.info(f"Saving the model")
-        torch.save(dntm.state_dict(), f"../models/{run_name}.pth")
 
         del train_data_loader
         test_data_loader = DataLoader(test, batch_size=batch_size)
 
         logging.info("Starting testing phase")
-        test_step(device, dntm, output, test_data_loader)
+        test_step(device, model, output, test_data_loader)
 
 
-def build_model(address_size, content_size, controller_input_size, controller_output_size, device,
-                n_locations):
-    dntm_memory = DynamicNeuralTuringMachineMemory(
-        n_locations=n_locations,
-        content_size=content_size,
-        address_size=address_size,
-        controller_input_size=controller_input_size
-    )
-    dntm = DynamicNeuralTuringMachine(
-        memory=dntm_memory,
-        controller_hidden_state_size=n_locations,
-        controller_input_size=controller_input_size,
-        controller_output_size=controller_output_size
-    ).to(device)
-    return dntm
+def build_model(input_size, output_size, device):
+    pass
 
 
 def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch, batch_size):
@@ -122,11 +93,6 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
             writer.add_images(f"Training data batch {batch_i}",
                               mnist_images.reshape(batch_size, 28, 28, 1),
                               dataformats='NHWC')
-
-        logging.debug(f"Resetting the memory")
-        model.memory.reset_memory_content()
-        model.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
-        model.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
 
         logging.debug(f"Moving image to GPU")
         mnist_images, targets = mnist_images.to(device), targets.to(device)
@@ -147,8 +113,8 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
 
         logging.debug(f"Computing gradients")
         loss_value.backward()
-        logging.debug(f"{model.W_output.grad=}")
-        logging.debug(f"{model.b_output.grad=}")
+        # logging.debug(f"{model.W_output.grad=}")
+        # logging.debug(f"{model.b_output.grad=}")
 
         logging.debug(f"Running optimization step")
         opt.step()
@@ -159,15 +125,12 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
     return output, loss_value, accuracy_over_batches
 
 
-def test_step(device, dntm, output, test_data_loader):
+def test_step(device, model, output, test_data_loader):
     test_accuracy = Accuracy().to(device)
 
-    dntm.eval()
+    model.eval()
     for batch_i, (mnist_images, targets) in enumerate(test_data_loader):
         logging.info(f"MNIST batch {batch_i}")
-
-        dntm.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
-        dntm.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
 
         logging.debug(f"Moving image to GPU")
         mnist_images, targets = mnist_images.to(device), targets.to(device)
@@ -175,10 +138,9 @@ def test_step(device, dntm, output, test_data_loader):
         logging.debug(f"Looping through image pixels")
         for pixel_i, pixels in enumerate(mnist_images.T):
             logging.debug(f"Pixel {pixel_i}")
-            __, output = dntm(pixels.view(1, -1))
+            __, output = model(pixels.view(1, -1))
             break
 
-        dntm.memory.reset_memory_content()
         batch_accuracy = test_accuracy(output.T, targets)
     test_accuracy = test_accuracy.compute()
     mlflow.log_metric(key="test_accuracy", value=test_accuracy.item())
