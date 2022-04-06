@@ -101,11 +101,16 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
         mnist_images, targets = mnist_images.to(device), targets.to(device)
 
         logging.debug(f"Feeding pixel sequence to model")
-        output, h_n = model(mnist_images.view(batch_size, 784, 1))
+        full_output, h_n = model(mnist_images.view(-1, 28*10, 1))
+        logging.debug(f"{full_output=}")
+        last_output = full_output[:, -1, :].view((-1, 10))  # select only the output for the last timestep and reshape to 2D
+        logging.debug(f"{last_output=}")
+        log_soft_output = torch.nn.functional.log_softmax(last_output, dim=0)
+        logging.debug(f"{log_soft_output=}")
 
         if batch_i == 0:
             writer.add_text(tag="First batch preds vs targets",
-                            text_string='pred: ' + ' '.join([str(p.item()) for p in output.argmax(axis=0)]) +
+                            text_string='pred: ' + ' '.join([str(p.item()) for p in log_soft_output.argmax(axis=1)]) +
                                         "\n\n target:" + ' '.join([str(t.item()) for t in targets]),
                             global_step=epoch)
 
@@ -123,7 +128,7 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
         logging.debug(f"Running optimization step")
         opt.step()
 
-        batch_accuracy = train_accuracy(output.argmax(axis=0), targets)
+        batch_accuracy = train_accuracy(log_soft_output.argmax(axis=1), targets)
     accuracy_over_batches = train_accuracy.compute()
     epoch_loss /= len(train_data_loader.sampler)
     train_accuracy.reset()
