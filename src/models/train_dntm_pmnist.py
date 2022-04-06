@@ -120,7 +120,7 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
 
         if (epoch == 0) and (batch_i == 0):
             writer.add_images(f"Training data batch {batch_i}",
-                              mnist_images.reshape(batch_size, 28, 28, 1),
+                              mnist_images.reshape(batch_size, -1, 28, 1),
                               dataformats='NHWC')
 
         logging.debug(f"Resetting the memory")
