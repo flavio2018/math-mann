@@ -65,8 +65,7 @@ def train_and_test_recurrent_smnist(loglevel, run_name, lr, batch_size, epochs, 
         torch.autograd.set_detect_anomaly(True)
         for epoch in range(epochs):
             logging.info(f"Epoch {epoch}")
-            output, loss_value, accuracy = training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
-                                                         batch_size)
+            loss_value, accuracy = training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch, batch_size)
             writer.add_scalar("Loss/train", loss_value, epoch)
             writer.add_scalar("Accuracy/train", accuracy, epoch)
 
@@ -123,10 +122,10 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
         batch_accuracy = train_accuracy(output.argmax(axis=0), targets)
     accuracy_over_batches = train_accuracy.compute()
     train_accuracy.reset()
-    return output, loss_value, accuracy_over_batches
+    return epoch_loss, accuracy_over_batches
 
 
-def test_step(device, model, output, test_data_loader):
+def test_step(device, model, test_data_loader):
     test_accuracy = Accuracy().to(device)
 
     model.eval()
