@@ -78,8 +78,7 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
         torch.autograd.set_detect_anomaly(True)
         for epoch in range(epochs):
             logging.info(f"Epoch {epoch}")
-            output, loss_value, accuracy = training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch,
-                                                         batch_size)
+            loss_value, accuracy = training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch, batch_size)
             writer.add_scalar("Loss/train", loss_value, epoch)
             writer.add_scalar("Accuracy/train", accuracy, epoch)
 
@@ -90,7 +89,7 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
         test_data_loader = DataLoader(test, batch_size=batch_size)
 
         logging.info("Starting testing phase")
-        test_step(device, dntm, output, test_data_loader)
+        test_step(device, dntm, test_data_loader)
 
 
 def build_model(address_size, content_size, controller_input_size, controller_output_size, device,
@@ -156,10 +155,10 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
         batch_accuracy = train_accuracy(output.argmax(axis=0), targets)
     accuracy_over_batches = train_accuracy.compute()
     train_accuracy.reset()
-    return output, loss_value, accuracy_over_batches
+    return epoch_loss, accuracy_over_batches
 
 
-def test_step(device, dntm, output, test_data_loader):
+def test_step(device, dntm, test_data_loader):
     test_accuracy = Accuracy().to(device)
 
     dntm.eval()
