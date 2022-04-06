@@ -13,6 +13,12 @@ def get_dataset(permute, seed):
     def _flatten(x: np.array):
         return x.flatten()
 
+    def _zero_out(x: np.array):
+        return np.zeros(x.shape)
+
+    def _cut(x: np.array):
+        return x[:28*10]  # accorcia la sequenza a 28*3 elementi
+
     def _rescale(x: np.array):
         return x / 255
     
