@@ -69,12 +69,6 @@ def train_and_test_recurrent_smnist(loglevel, run_name, lr, batch_size, epochs, 
             writer.add_scalar("Loss/train", loss_value, epoch)
             writer.add_scalar("Accuracy/train", accuracy, epoch)
 
-        del train_data_loader
-        test_data_loader = DataLoader(test, batch_size=batch_size)
-
-        logging.info("Starting testing phase")
-        test_step(device, model, output, test_data_loader)
-
 
 def build_model(input_size, output_size, device):
     return torch.nn.RNN(input_size=input_size,
