@@ -86,6 +86,7 @@ def build_model(input_size, output_size, device):
 def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch, batch_size):
     train_accuracy = Accuracy().to(device)
 
+    epoch_loss = 0
     for batch_i, (mnist_images, targets) in enumerate(train_data_loader):
 
         logging.info(f"MNIST batch {batch_i}")
@@ -109,7 +110,10 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
                             global_step=epoch)
 
         logging.debug(f"Computing loss value")
-        loss_value = loss_fn(output.T, targets)
+        logging.debug(f"{targets=}")
+        loss_value = loss_fn(log_soft_output, targets)
+        # writer.add_scalar("per-batch_loss/train", loss_value, batch_i)
+        epoch_loss += loss_value.item()*mnist_images.size(0)
 
         logging.debug(f"Computing gradients")
         loss_value.backward()
@@ -121,6 +125,7 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
 
         batch_accuracy = train_accuracy(output.argmax(axis=0), targets)
     accuracy_over_batches = train_accuracy.compute()
+    epoch_loss /= len(train_data_loader.sampler)
     train_accuracy.reset()
     return epoch_loss, accuracy_over_batches
 
