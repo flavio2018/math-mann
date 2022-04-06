@@ -71,9 +71,8 @@ def train_and_test_recurrent_smnist(loglevel, run_name, lr, batch_size, epochs, 
 
 
 def build_model(input_size, output_size, device):
-    return torch.nn.RNN(input_size=input_size,
+    return torch.nn.GRU(input_size=input_size,
                         hidden_size=output_size,
-                        nonlinearity='relu',
                         batch_first=True).to(device)
 
 
