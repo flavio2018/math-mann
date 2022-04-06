@@ -32,6 +32,7 @@ def get_dataset(permute, seed):
         np.array,
         _rescale,
         _flatten,
+        _cut,
         _convert_to_float32,
     )
     
