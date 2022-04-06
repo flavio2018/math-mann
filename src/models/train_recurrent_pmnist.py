@@ -122,8 +122,8 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
 
         logging.debug(f"Computing gradients")
         loss_value.backward()
-        logging.debug(f"{model.weight_hh_l[-1].grad=}")
-        logging.debug(f"{model.bias_hh_l[-1].grad=}")
+        logging.debug(f"{model._parameters['weight_hh_l0'].grad=}")
+        logging.debug(f"{model._parameters['bias_hh_l0'].grad=}")
 
         logging.debug(f"Running optimization step")
         opt.step()
