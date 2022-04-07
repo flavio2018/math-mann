@@ -5,7 +5,7 @@ from codetiming import Timer
 from humanfriendly import format_timespan
 import logging
 
-from src.utils import configure_logging, get_str_timestamp, configure_reproducibility, seed_worker
+from src.utils import configure_logging, get_str_timestamp, configure_reproducibility, seed_worker, SimpleEarlyStopping
 from src.data.perm_seq_mnist import get_dataset
 
 from torch.utils.data import DataLoader
@@ -62,6 +62,9 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
 
     loss_fn = torch.nn.NLLLoss()
     opt = torch.optim.Adam(dntm.parameters(), lr=lr)
+    early_stopping = SimpleEarlyStopping(patience=5,
+                                         minimal_improvement=0.01,
+                                         run_name=run_name)
 
     with mlflow.start_run(run_name=run_name):
         mlflow.log_params({
@@ -81,9 +84,8 @@ def train_and_test_dntm_smnist(loglevel, run_name, n_locations, content_size, ad
             loss_value, accuracy = training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch, batch_size)
             writer.add_scalar("Loss/train", loss_value, epoch)
             writer.add_scalar("Accuracy/train", accuracy, epoch)
-
-        logging.info(f"Saving the model")
-        torch.save(dntm.state_dict(), f"../models/{run_name}.pth")
+            if early_stopping.early_stop(loss_value, dntm):
+                break
 
         del train_data_loader
         test_data_loader = DataLoader(test, batch_size=batch_size)
@@ -170,6 +172,7 @@ def test_step(device, dntm, test_data_loader):
     for batch_i, (mnist_images, targets) in enumerate(test_data_loader):
         logging.info(f"MNIST batch {batch_i}")
 
+        dntm.memory.reset_memory_content()
         dntm.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
         dntm.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
 
@@ -180,10 +183,8 @@ def test_step(device, dntm, test_data_loader):
         for pixel_i, pixels in enumerate(mnist_images.T):
             logging.debug(f"Pixel {pixel_i}")
             __, output = dntm(pixels.view(1, -1))
-            break
 
-        dntm.memory.reset_memory_content()
-        batch_accuracy = test_accuracy(output.T, targets)
+        batch_accuracy = test_accuracy(output.argmax(axis=0), targets)
     test_accuracy = test_accuracy.compute()
     mlflow.log_metric(key="test_accuracy", value=test_accuracy.item())
 
