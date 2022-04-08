@@ -73,7 +73,7 @@ class SimpleEarlyStopping:
         if self.steps_since_last_improvement > self.patience:
             return True
 
-        elif (sef.best_train_loss == 0) or ((self.best_train_loss - train_loss_value) > self.minimal_improvement):
+        elif (self.best_train_loss == 0) or ((self.best_train_loss - train_loss_value) > self.minimal_improvement):
             self.steps_since_last_improvement = 0
             self.best_train_loss = train_loss_value
 
