@@ -17,7 +17,7 @@ def get_dataset(permute, seed):
         return np.zeros(x.shape)
 
     def _cut(x: np.array):
-        return x[:28*10]  # accorcia la sequenza a 28*3 elementi
+        return x[:28*10]  # accorcia la sequenza a 28*10 elementi
 
     def _rescale(x: np.array):
         return x / 255
@@ -32,7 +32,6 @@ def get_dataset(permute, seed):
         np.array,
         _rescale,
         _flatten,
-        _cut,
         _convert_to_float32,
     )
     
