@@ -3,6 +3,9 @@ import logging
 import numpy as np
 import torch
 import random
+from torch.utils.tensorboard import SummaryWriter
+import mlflow
+import inspect
 
 
 def configure_logging(loglevel, run_name):
@@ -51,6 +54,28 @@ def configure_reproducibility(device, seed):
     torch.backends.cudnn.deterministic = True
 
     torch.use_deterministic_algorithms(mode=True, warn_only=True)
+
+
+def config_run(loglevel, run_name, seed):
+    caller_name = inspect.stack()[1].function
+    run_name = "_".join([caller_name, get_str_timestamp(), run_name])
+
+    configure_logging(loglevel, run_name)
+
+    mlflow.set_tracking_uri("file:../logs/mlruns/")
+    mlflow.set_experiment(experiment_name="dntm_pmnist")
+
+    writer = SummaryWriter(log_dir=f"../logs/tensorboard/{run_name}")
+
+    device = torch.device("cuda", 0)
+    if loglevel == 'DEBUG':
+        torch.autograd.set_detect_anomaly(True)
+
+    configure_reproducibility(device, seed)
+    rng = torch.Generator()
+    rng.manual_seed(seed)
+
+    return device, rng, run_name, writer
 
 
 def seed_worker(worker_id):
