@@ -43,6 +43,7 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
     device, rng, run_name, writer = config_run(loglevel, run_name, seed)
 
     train, test = get_dataset(permute, seed)
+    train.data, test.data = train.data[:50], test.data[:50]
     train_data_loader = DataLoader(train, batch_size=batch_size, shuffle=False,
                                    worker_init_fn=seed_worker, num_workers=0, generator=rng)  # reproducibility
 
