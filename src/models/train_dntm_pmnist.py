@@ -43,6 +43,7 @@ def click_wrapper(loglevel, run_name, seed,
 def train_and_test_dntm_smnist(loglevel, run_name, seed,
                                lr, batch_size, epochs,
                                ckpt, n_locations, content_size, address_size, permute):
+    run_codename = run_name
     device, rng, run_name, writer = config_run(loglevel, run_name, seed)
 
     train, test = get_dataset(permute, seed)
@@ -87,7 +88,7 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
                                    path=f"../models/checkpoints/{run_name}.pth",
                                    trace_func=logging.info)
 
-    with mlflow.start_run(run_name=run_name):
+    with mlflow.start_run(run_name=run_codename):
         mlflow.log_params({
                 "learning_rate": lr,
                 "batch_size": batch_size,
