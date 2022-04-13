@@ -197,8 +197,8 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
 
         if batch_i == 0:
             writer.add_text(tag="First batch preds vs targets",
-                            text_string='pred: ' + ' '.join([str(p.item()) for p in output.argmax(axis=0)]) +
-                                        "\n\n target:" + ' '.join([str(t.item()) for t in targets]),
+                            text_string='pred:\t' + ' '.join([str(p.item()) for p in output.argmax(axis=0)]) +
+                                        "\n\n target:\t" + ' '.join([str(t.item()) for t in targets]),
                             global_step=epoch)
 
         logging.debug(f"Computing loss value")
