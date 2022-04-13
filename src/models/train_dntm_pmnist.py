@@ -5,12 +5,15 @@ from codetiming import Timer
 from humanfriendly import format_timespan
 import logging
 
-from src.utils import seed_worker, SimpleEarlyStopping, config_run
+from src.utils import seed_worker, config_run
 from src.data.perm_seq_mnist import get_dataset
 
+import numpy as np
 from torch.utils.data import DataLoader
+from torch.utils.data.sampler import SubsetRandomSampler
 from torchmetrics.classification import Accuracy
 import mlflow
+from src.models.pytorchtools import EarlyStopping
 
 from src.models.DynamicNeuralTuringMachine import DynamicNeuralTuringMachine
 from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachineMemory
@@ -43,9 +46,34 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
     device, rng, run_name, writer = config_run(loglevel, run_name, seed)
 
     train, test = get_dataset(permute, seed)
-    train.data, test.data = train.data[:50], test.data[:50]
-    train_data_loader = DataLoader(train, batch_size=batch_size, shuffle=False,
-                                   worker_init_fn=seed_worker, num_workers=0, generator=rng)  # reproducibility
+
+    # obtain training indices that will be used for validation
+    valid_size=0.2
+    num_train = len(train)
+    indices = list(range(num_train))
+    np.random.shuffle(indices)
+    split = int(np.floor(valid_size * num_train))
+    train_idx, valid_idx = indices[split:], indices[:split]
+
+    # define samplers for obtaining training and validation batches
+    train_sampler = SubsetRandomSampler(train_idx)
+    valid_sampler = SubsetRandomSampler(valid_idx)
+
+    train_data_loader = DataLoader(train,
+                                   batch_size=batch_size,
+                                   shuffle=False,
+                                   worker_init_fn=seed_worker,
+                                   sampler=train_sampler,
+                                   num_workers=0,
+                                   generator=rng)  # reproducibility
+
+    valid_data_loader = DataLoader(train,
+                                   batch_size=batch_size,
+                                   shuffle=False,
+                                   worker_init_fn=seed_worker,
+                                   sampler=valid_sampler,
+                                   num_workers=0,
+                                   generator=rng)  # reproducibility
 
     controller_input_size = 1
     controller_output_size = 10
@@ -54,9 +82,9 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
 
     loss_fn = torch.nn.NLLLoss()
     opt = torch.optim.Adam(dntm.parameters(), lr=lr)
-    early_stopping = SimpleEarlyStopping(patience=5,
-                                         minimal_improvement=0.01,
-                                         run_name=run_name)
+    early_stopping = EarlyStopping(verbose=True,
+                                   path=f"../models/checkpoints/{run_name}.pth",
+                                   trace_func=logging.info)
 
     with mlflow.start_run(run_name=run_name):
         mlflow.log_params({
@@ -73,10 +101,18 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
         # training
         for epoch in range(epochs):
             logging.info(f"Epoch {epoch}")
-            loss_value, accuracy = training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch, batch_size)
-            writer.add_scalar("Loss/train", loss_value, epoch)
-            writer.add_scalar("Accuracy/train", accuracy, epoch)
-            if early_stopping.early_stop(loss_value, dntm):
+
+            train_loss, train_accuracy = training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch, batch_size)
+            valid_loss, valid_accuracy = valid_step(device, dntm, loss_fn, valid_data_loader)
+
+            writer.add_scalars("Loss/training", {'training_set': train_loss,
+                                                 'validation_set': valid_loss}, epoch)
+            writer.add_scalars("Accuracy/training", {'training_set': train_accuracy,
+                                                     'validation_set': valid_accuracy}, epoch)
+
+            early_stopping(valid_loss, dntm)
+            if early_stopping.early_stop:
+                logging.info("Early stopping")
                 break
 
         # testing
@@ -87,7 +123,32 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
         test_step(device, dntm, test_data_loader)
 
 
-def build_model(address_size, content_size, controller_input_size, controller_output_size, device,
+def valid_step(device, dntm, loss_fn, valid_data_loader):
+    valid_accuracy = Accuracy().to(device)
+    valid_epoch_loss = 0
+    dntm.eval()
+    for batch_i, (mnist_images, targets) in enumerate(valid_data_loader):
+        dntm.memory.reset_memory_content()
+        dntm.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
+        dntm.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
+
+        mnist_images, targets = mnist_images.to(device), targets.to(device)
+
+        for pixel_i, pixels in enumerate(mnist_images.T):
+            logging.debug(f"Pixel {pixel_i}")
+            __, output = dntm(pixels.view(1, -1))
+
+        loss_value = loss_fn(output.T, targets)
+        valid_epoch_loss += loss_value.item() * mnist_images.size(0)
+
+        batch_accuracy = valid_accuracy(output.argmax(axis=0), targets)
+    valid_accuracy_at_epoch = valid_accuracy.compute()
+    valid_epoch_loss /= len(valid_data_loader.sampler)
+    valid_accuracy.reset()
+    return valid_epoch_loss, valid_accuracy_at_epoch
+
+
+def build_model(ckpt, address_size, content_size, controller_input_size, controller_output_size, device,
                 n_locations):
     dntm_memory = DynamicNeuralTuringMachineMemory(
         n_locations=n_locations,
@@ -108,6 +169,7 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
     train_accuracy = Accuracy().to(device)
 
     epoch_loss = 0
+    model.train()
     for batch_i, (mnist_images, targets) in enumerate(train_data_loader):
 
         logging.info(f"MNIST batch {batch_i}")
