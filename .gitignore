@@ -1,5 +1,6 @@
 # model checkpoints and dumps
 models/checkpoints/
+models/trax-checkpoints/
 logs/
 
 # virtual environment
