@@ -79,7 +79,7 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
 
     controller_input_size = 1
     controller_output_size = 10
-    dntm = build_model(address_size, content_size, controller_input_size, controller_output_size, device,
+    dntm = build_model(ckpt, address_size, content_size, controller_input_size, controller_output_size, device,
                        n_locations)
 
     loss_fn = torch.nn.NLLLoss()
@@ -164,6 +164,15 @@ def build_model(ckpt, address_size, content_size, controller_input_size, control
         controller_input_size=controller_input_size,
         controller_output_size=controller_output_size
     ).to(device)
+    if ckpt is not None:
+        logging.info(f"Reloading from checkpoint: {ckpt}")
+        state_dict = torch.load(ckpt)
+        batch_size_ckpt = state_dict['controller_hidden_state'].shape[1]
+        dntm.memory.reset_memory_content()
+        dntm.reshape_and_reset_hidden_states(batch_size=batch_size_ckpt, device=device)
+        dntm.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=batch_size_ckpt, device=device)
+        dntm.memory.reshape_and_reset_read_write_weights(shape=state_dict['memory.read_weights'].shape)
+        dntm.load_state_dict(state_dict)
     return dntm
 
 
