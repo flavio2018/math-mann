@@ -10,6 +10,7 @@ tensorflow_datasets
 tensorflow
 toolz
 torchmetrics
+torchtext
 
 # to use the A5000 nodes a specific pytorch version needs to be installed
 
