@@ -28,7 +28,7 @@ def get_str_timestamp():
     return datetime.now().strftime("%Y%B%d_%H-%M-%S")
 
 
-def configure_reproducibility(device, seed):
+def configure_reproducibility(seed):
     """This is to try and ensure reproducibility, although it is known that it cannot be fully ensured across different
     PyTorch versions, CUDA and cuDNN versions and systems.
 
@@ -45,6 +45,10 @@ def configure_reproducibility(device, seed):
     np.random.seed(seed)
     random.seed(seed)
     torch.manual_seed(seed)
+
+    rng = torch.Generator()
+    rng.manual_seed(seed)
+
     # if you are using GPU
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -54,6 +58,8 @@ def configure_reproducibility(device, seed):
     torch.backends.cudnn.deterministic = True
 
     torch.use_deterministic_algorithms(mode=True, warn_only=True)
+
+    return rng
 
 
 def config_run(loglevel, run_name, seed):
@@ -71,9 +77,7 @@ def config_run(loglevel, run_name, seed):
     if loglevel == 'DEBUG':
         torch.autograd.set_detect_anomaly(True)
 
-    configure_reproducibility(device, seed)
-    rng = torch.Generator()
-    rng.manual_seed(seed)
+    rng = configure_reproducibility(seed)
 
     return device, rng, run_name, writer
 
