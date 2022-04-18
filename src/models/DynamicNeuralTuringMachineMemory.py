@@ -128,6 +128,10 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         self.register_buffer("exp_mov_avg_similarity", torch.zeros(size=(n_locations, batch_size)))
         self.exp_mov_avg_similarity = self.exp_mov_avg_similarity.to(device)
 
+    def reshape_and_reset_read_write_weights(self, shape):
+        self.read_weights = nn.Parameter(torch.zeros(size=shape))
+        self.write_weights = nn.Parameter(torch.zeros(size=shape))
+
     def forward(self, x):
         raise RuntimeError("It makes no sense to call the memory module on its own. "
                            "The module should be accessed by the controller "
