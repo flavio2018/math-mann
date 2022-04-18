@@ -47,10 +47,10 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
     device, rng, run_name, writer = config_run(loglevel, run_name, seed)
 
     train, test = get_dataset(permute, seed)
-    train.data, train.targets = train.data[:5000], train.targets[:5000]
+    train.data, train.targets = train.data[:100], train.targets[:100]
 
     # obtain training indices that will be used for validation
-    valid_size=0.2
+    valid_size = 0.2
     num_train = len(train)
     indices = list(range(num_train))
     np.random.shuffle(indices)
@@ -79,14 +79,16 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
 
     controller_input_size = 1
     controller_output_size = 10
-    dntm = build_model(ckpt, address_size, content_size, controller_input_size, controller_output_size, device,
-                       n_locations)
+    controller_hidden_state_size = 100
+    dntm = build_model(ckpt, address_size, content_size, controller_input_size, controller_output_size,
+                       controller_hidden_state_size, device, n_locations)
 
     loss_fn = torch.nn.NLLLoss()
     opt = torch.optim.Adam(dntm.parameters(), lr=lr)
     early_stopping = EarlyStopping(verbose=True,
                                    path=f"../models/checkpoints/{run_name}.pth",
-                                   trace_func=logging.info)
+                                   trace_func=logging.info,
+                                   patience=100000)
 
     with mlflow.start_run(run_name=run_codename):
         mlflow.log_params({
@@ -150,8 +152,8 @@ def valid_step(device, dntm, loss_fn, valid_data_loader):
     return valid_epoch_loss, valid_accuracy_at_epoch
 
 
-def build_model(ckpt, address_size, content_size, controller_input_size, controller_output_size, device,
-                n_locations):
+def build_model(ckpt, address_size, content_size, controller_input_size, controller_output_size,
+                controller_hidden_state_size, device, n_locations):
     dntm_memory = DynamicNeuralTuringMachineMemory(
         n_locations=n_locations,
         content_size=content_size,
@@ -160,7 +162,7 @@ def build_model(ckpt, address_size, content_size, controller_input_size, control
     )
     dntm = DynamicNeuralTuringMachine(
         memory=dntm_memory,
-        controller_hidden_state_size=n_locations,
+        controller_hidden_state_size=controller_hidden_state_size,
         controller_input_size=controller_input_size,
         controller_output_size=controller_output_size
     ).to(device)
