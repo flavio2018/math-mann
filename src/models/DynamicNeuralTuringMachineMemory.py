@@ -57,7 +57,8 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         self.write_weights = self._address_memory(controller_hidden_state)
         erase_vector = self.W_erase @ controller_hidden_state + self.b_erase  # TODO MLP
 
-        alpha = self.u_content_alpha @ torch.cat((controller_hidden_state, controller_input)) + self.b_content_alpha
+        alpha = (self.u_input_content_alpha @ controller_input +
+                 self.u_hidden_content_alpha @ controller_hidden_state + self.b_content_alpha)
 
         candidate_content_vector = F.relu(self.W_content_hidden @ controller_hidden_state +
                                           torch.mul(alpha, self.W_content_input @ controller_input))
