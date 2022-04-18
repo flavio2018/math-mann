@@ -1,4 +1,3 @@
-import pytest
 import torch
 
 from src.models.DynamicNeuralTuringMachine import DynamicNeuralTuringMachine
@@ -6,6 +5,7 @@ from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachi
 
 
 CONTROLLER_INPUT_SIZE = 1
+CONTROLLER_HIDDEN_STATE_SIZE = 13
 CONTROLLER_OUTPUT_SIZE = 10
 BATCH_SIZE = 4
 
@@ -27,14 +27,15 @@ def _mock_controller_input():
 
 def _mock_controller_hidden_state():
     memory_parameters = _init_dntm_memory_parameters()
-    return torch.randn((memory_parameters["n_locations"], BATCH_SIZE))
+    return torch.randn((CONTROLLER_HIDDEN_STATE_SIZE, BATCH_SIZE))
 
 
 def test_dntm_memory_reading_shape():
     memory_parameters = _init_dntm_memory_parameters()
     mock_hidden_state = _mock_controller_hidden_state()
     dntm_memory = DynamicNeuralTuringMachineMemory(
-        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE)
+        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE,
+        controller_hidden_state_size=CONTROLLER_HIDDEN_STATE_SIZE)
     with torch.no_grad():
         dntm_memory.reshape_and_reset_exp_mov_avg_sim(batch_size=BATCH_SIZE, device=torch.device("cpu"))
         memory_reading = dntm_memory.read(mock_hidden_state)
@@ -46,7 +47,8 @@ def test_dntm_memory_address_vector_shape():
     memory_parameters = _init_dntm_memory_parameters()
     mock_hidden_state = _mock_controller_hidden_state()
     dntm_memory = DynamicNeuralTuringMachineMemory(
-        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE)
+        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE,
+        controller_hidden_state_size=CONTROLLER_HIDDEN_STATE_SIZE)
     with torch.no_grad():
         dntm_memory.reshape_and_reset_exp_mov_avg_sim(batch_size=BATCH_SIZE, device=torch.device("cpu"))
         address_vector = dntm_memory._address_memory(mock_hidden_state)
@@ -58,7 +60,8 @@ def test_dntm_memory_address_vector_contains_no_nan_values():
     memory_parameters = _init_dntm_memory_parameters()
     mock_hidden_state = _mock_controller_hidden_state()
     dntm_memory = DynamicNeuralTuringMachineMemory(
-        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE)
+        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE,
+        controller_hidden_state_size=CONTROLLER_HIDDEN_STATE_SIZE)
     with torch.no_grad():
         dntm_memory.reshape_and_reset_exp_mov_avg_sim(batch_size=BATCH_SIZE, device=torch.device("cpu"))
         address_vector = dntm_memory._address_memory(mock_hidden_state)
@@ -82,7 +85,8 @@ def test_dntm_memory_contents_shape_doesnt_change_after_update():
     mock_hidden_state = _mock_controller_hidden_state()
 
     dntm_memory = DynamicNeuralTuringMachineMemory(
-        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE)
+        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE,
+        controller_hidden_state_size=CONTROLLER_HIDDEN_STATE_SIZE)
     with torch.no_grad():
         dntm_memory.reshape_and_reset_exp_mov_avg_sim(batch_size=BATCH_SIZE, device=torch.device("cpu"))
         memory_contents_before_update = dntm_memory.memory_contents
@@ -95,7 +99,8 @@ def test_dntm_memory_is_zeros_after_reset():
     mock_hidden_state = _mock_controller_hidden_state()
 
     dntm_memory = DynamicNeuralTuringMachineMemory(
-        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE)
+        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE,
+        controller_hidden_state_size=CONTROLLER_HIDDEN_STATE_SIZE)
     with torch.no_grad():
         dntm_memory.reshape_and_reset_exp_mov_avg_sim(batch_size=BATCH_SIZE, device=torch.device("cpu"))
         dntm_memory.update(mock_hidden_state, _mock_controller_input())
@@ -108,10 +113,11 @@ def test_dntm_controller_hidden_state_contains_no_nan_values_after_update():
     mocked_controller_input = _mock_controller_input()
 
     dntm_memory = DynamicNeuralTuringMachineMemory(
-        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE)
+        **memory_parameters, controller_input_size=CONTROLLER_INPUT_SIZE,
+        controller_hidden_state_size=CONTROLLER_HIDDEN_STATE_SIZE)
     dntm = DynamicNeuralTuringMachine(
         memory=dntm_memory,
-        controller_hidden_state_size=memory_parameters["n_locations"],
+        controller_hidden_state_size=CONTROLLER_HIDDEN_STATE_SIZE,
         controller_input_size=CONTROLLER_INPUT_SIZE,
         controller_output_size=CONTROLLER_OUTPUT_SIZE,
     )
