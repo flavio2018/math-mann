@@ -6,7 +6,7 @@ import logging
 
 
 class DynamicNeuralTuringMachineMemory(nn.Module):
-    def __init__(self, n_locations, content_size, address_size, controller_input_size):
+    def __init__(self, n_locations, content_size, address_size, controller_input_size, controller_hidden_state_size):
         """Instantiate the memory.
         n_locations: number of memory locations
         content_size: size of the content part of memory locations
@@ -18,26 +18,29 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         self.memory_addresses = nn.Parameter(torch.zeros(size=(n_locations, address_size)), requires_grad=True)
         self.overall_memory_size = content_size + address_size
 
+        self.W_hat_hidden = nn.Parameter(torch.zeros(size=(n_locations, controller_hidden_state_size)))
+
         # query vector MLP parameters (W_k, b_k)
         self.W_query = nn.Parameter(torch.zeros(size=(n_locations, self.overall_memory_size)), requires_grad=True)
         self.b_query = nn.Parameter(torch.zeros(size=(self.overall_memory_size, 1)), requires_grad=True)
 
         # sharpening parameters (u_beta, b_beta)
-        self.u_sharpen = nn.Parameter(torch.zeros(size=(n_locations, 1)), requires_grad=True)
+        self.u_sharpen = nn.Parameter(torch.zeros(size=(controller_hidden_state_size, 1)), requires_grad=True)
         self.b_sharpen = nn.Parameter(torch.zeros(1), requires_grad=True)
 
         # LRU parameters (u_gamma, b_gamma)
         self.b_lru = nn.Parameter(torch.zeros(1))
-        self.u_lru = nn.Parameter(torch.zeros(size=(n_locations, 1)))
+        self.u_lru = nn.Parameter(torch.zeros(size=(controller_hidden_state_size, 1)))
 
         # erase parameters (generate e_t)
-        self.W_erase = nn.Parameter(torch.zeros(size=(content_size, n_locations)))
+        self.W_erase = nn.Parameter(torch.zeros(size=(content_size, controller_hidden_state_size)))
         self.b_erase = nn.Parameter(torch.zeros(size=(content_size, 1)))
 
         # writing parameters (W_m, W_h, alpha)
-        self.W_content_hidden = nn.Parameter(torch.zeros(size=(content_size, n_locations)))
+        self.W_content_hidden = nn.Parameter(torch.zeros(size=(content_size, controller_hidden_state_size)))
         self.W_content_input = nn.Parameter(torch.zeros(size=(content_size, controller_input_size)))
-        self.u_content_alpha = nn.Parameter(torch.zeros(size=(1, n_locations+controller_input_size)))
+        self.u_input_content_alpha = nn.Parameter(torch.zeros(size=(1, controller_input_size)))
+        self.u_hidden_content_alpha = nn.Parameter(torch.zeros(size=(1, controller_hidden_state_size)))
         self.b_content_alpha = nn.Parameter(torch.zeros(1))
 
         # read & write weights
@@ -70,7 +73,8 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
             logging.debug(f"{self.memory_contents.element_size() * self.memory_contents.nelement()=}")
 
     def _address_memory(self, controller_hidden_state):
-        query = self.W_query.T @ controller_hidden_state + self.b_query
+        projected_hidden_state = self.W_hat_hidden @ controller_hidden_state
+        query = self.W_query.T @ projected_hidden_state + self.b_query
 
         sharpening_beta = F.softplus(self.u_sharpen.T @ controller_hidden_state + self.b_sharpen) + 1
 
