@@ -1,0 +1,4 @@
+defaults:
+        - run: local
+data:
+        problem_name: test

@@ -1,0 +1,6 @@
+run:
+        loglevel: INFO
+        project_path: "/media/shift97/My Passport/Flavio/repos/math-mann/"
+        run_name: default_local
+        seed: 18926457840238
+
