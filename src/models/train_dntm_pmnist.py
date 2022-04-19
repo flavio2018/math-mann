@@ -158,7 +158,8 @@ def build_model(ckpt, address_size, content_size, controller_input_size, control
         n_locations=n_locations,
         content_size=content_size,
         address_size=address_size,
-        controller_input_size=controller_input_size
+        controller_input_size=controller_input_size,
+        controller_hidden_state_size=controller_hidden_state_size
     )
     dntm = DynamicNeuralTuringMachine(
         memory=dntm_memory,
