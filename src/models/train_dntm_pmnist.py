@@ -47,7 +47,8 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
     device, rng, run_name, writer = config_run(loglevel, run_name, seed)
 
     train, test = get_dataset(permute, seed)
-    train.data, train.targets = train.data[:20000], train.targets[:20000]
+    train.data, train.targets = train.data[:6000], train.targets[:6000]
+    test.data, test.targets = test.data[:1000], test.targets[:1000]
 
     # obtain training indices that will be used for validation
     valid_size = 0.2
