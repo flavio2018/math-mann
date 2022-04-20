@@ -11,7 +11,7 @@ import torch
 from src.utils import config_run
 
 
-@hydra.main(config_path="../conf", config_name="mem_weights")
+@hydra.main(config_path="../../conf", config_name="mem_weights")
 def click_wrapper(cfg):
     inspect_mem_weights(cfg)
 
