@@ -25,7 +25,7 @@ def inspect_mem_weights(cfg):
                        controller_hidden_state_size=100, device=device, n_locations=n_locations)
 
     _, test = get_dataset(permute=False, seed=cfg.run.seed)
-    test.data, test.labels = test.data[:10], test.labels[:10]
+    test.data, test.targets = test.data[:10], test.targets[:10]
 
     test_data_loader = DataLoader(test, batch_size=1)
 
