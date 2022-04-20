@@ -47,8 +47,8 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
     device, rng, run_name, writer = config_run(loglevel, run_name, seed)
 
     train, test = get_dataset(permute, seed)
-    train.data, train.targets = train.data[:6000], train.targets[:6000]
-    test.data, test.targets = test.data[:1000], test.targets[:1000]
+    train.data, train.targets = train.data[:600], train.targets[:600]
+    test.data, test.targets = test.data[:100], test.targets[:100]
 
     # obtain training indices that will be used for validation
     valid_size = 0.2
@@ -89,7 +89,7 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
     early_stopping = EarlyStopping(verbose=True,
                                    path=f"../models/checkpoints/{run_name}.pth",
                                    trace_func=logging.info,
-                                   patience=10)
+                                   patience=1000)
 
     with mlflow.start_run(run_name=run_codename):
         mlflow.log_params({
