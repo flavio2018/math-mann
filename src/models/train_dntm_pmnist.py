@@ -89,7 +89,7 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
     early_stopping = EarlyStopping(verbose=True,
                                    path=f"../models/checkpoints/{run_name}.pth",
                                    trace_func=logging.info,
-                                   patience=100)
+                                   patience=10)
 
     with mlflow.start_run(run_name=run_codename):
         mlflow.log_params({

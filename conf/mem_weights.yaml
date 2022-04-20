@@ -1,4 +1,0 @@
-- defaults:
-        run: slurm
-        
-- ckpt: ${run.project_path}/models/checkpoints/train_and_test_dntm_smnist_2022April19_11-24-20_smnist_test_one_tenth_mnist.pth
