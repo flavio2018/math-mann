@@ -62,7 +62,7 @@ def build_model(ckpt, address_size, content_size, controller_input_size, control
     ).to(device)
     if ckpt is not None:
         logging.info(f"Reloading from checkpoint: {ckpt}")
-        state_dict = torch.load(ckpt)
+        state_dict = torch.load(ckpt, map_location=torch.device('cpu'))
         batch_size_ckpt = state_dict['controller_hidden_state'].shape[1]
         dntm.memory.reset_memory_content()
         dntm.reshape_and_reset_hidden_states(batch_size=batch_size_ckpt, device=device)
