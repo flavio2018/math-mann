@@ -24,10 +24,10 @@ def inspect_mem_weights(cfg):
 
     n_locations = 12000
     device = torch.device("cpu")
-    dntm = build_model(cfg.ckpt, address_size=8, content_size=16, controller_input_size=1, controller_output_size=10,
+    dntm = build_model(cfg.model.ckpt, address_size=8, content_size=16, controller_input_size=1, controller_output_size=10,
                        controller_hidden_state_size=100, device=device, n_locations=n_locations)
 
-    train, test = get_dataset(permute=False, seed=0)
+    _, test = get_dataset(permute=False, seed=cfg.run.seed)
     test.data, test.labels = test.data[:10], test.labels[:10]
 
     test_data_loader = DataLoader(test, batch_size=1)
