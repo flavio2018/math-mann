@@ -1,7 +1,5 @@
 """Use this script to visualize weights used to access memory."""
 import hydra
-from codetiming import Timer
-from humanfriendly import format_timespan
 import logging
 
 from src.models.DynamicNeuralTuringMachine import DynamicNeuralTuringMachine
@@ -14,7 +12,6 @@ from src.utils import config_run
 
 
 @hydra.main(config_path="", config_name="mem_weights")
-@Timer(text=lambda secs: f"Took {format_timespan(secs)}")
 def click_wrapper(cfg):
     inspect_mem_weights(cfg)
 
