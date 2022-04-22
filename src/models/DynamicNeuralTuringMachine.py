@@ -11,7 +11,6 @@ memory module."""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.nn.modules as M
 
 import logging
 
@@ -43,9 +42,10 @@ class DynamicNeuralTuringMachine(nn.Module):
             memory_reading = self.memory.read(self.controller_hidden_state)
             self.memory.update(self.controller_hidden_state, x)
             self.controller_hidden_state = self.controller(x, self.controller_hidden_state,
-                                                           memory_reading).detach()
+                                                           memory_reading)
 
             output = F.log_softmax(self.W_output @ self.controller_hidden_state + self.b_output, dim=0)
+            self.controller_hidden_state = self.controller_hidden_state.detach()
         return self.controller_hidden_state, output
 
     def _init_parameters(self, init_function):
