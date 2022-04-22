@@ -234,6 +234,8 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
         opt.step()
 
         batch_accuracy = train_accuracy(output.argmax(axis=0), targets)
+        log_weights_gradient(model, writer, batch_i, epoch)
+
     accuracy_over_batches = train_accuracy.compute()
     epoch_loss /= len(train_data_loader.sampler)
     train_accuracy.reset()
@@ -262,6 +264,14 @@ def test_step(device, dntm, test_data_loader):
         batch_accuracy = test_accuracy(output.argmax(axis=0), targets)
     test_accuracy = test_accuracy.compute()
     mlflow.log_metric(key="test_accuracy", value=test_accuracy.item())
+
+
+def log_weights_gradient(dntm, writer, batch_i, epoch):
+    for param_name, param in dntm.named_parameters():
+        if param.grad is not None:
+            writer.add_histogram(f"{param_name}_gradient_epoch{epoch}", param.grad, global_step=batch_i)
+        else:
+            logging.warning(f"{param_name} gradient is None!")
 
 
 if __name__ == "__main__":
