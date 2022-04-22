@@ -200,6 +200,11 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
         model.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
         model.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
 
+        if (epoch == 0) and (batch_i == 0):
+            mocked_input = torch.ones(size=(1, mnist_images.shape[0]), device="cuda")
+            hidden_state, output = model(mocked_input)
+            writer.add_graph(model, mocked_input)
+
         logging.debug(f"Moving image to GPU")
         mnist_images, targets = mnist_images.to(device), targets.to(device)
 
