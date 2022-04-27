@@ -43,10 +43,6 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         self.u_hidden_content_alpha = nn.Parameter(torch.zeros(size=(1, controller_hidden_state_size)))
         self.b_content_alpha = nn.Parameter(torch.zeros(1))
 
-        # read & write weights
-        self.read_weights = nn.Parameter(torch.zeros(size=(n_locations, 1)))
-        self.write_weights = nn.Parameter(torch.zeros(size=(n_locations, 1)))
-
     def read(self, controller_hidden_state):
         self.read_weights = self._address_memory(controller_hidden_state)
         # this implements the memory NO-OP at reading phase
@@ -115,7 +111,7 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         lru_similarity_vector = F.softmax(similarity_vector - lru_gamma * self.exp_mov_avg_similarity, dim=0)
         with torch.no_grad():
             self.exp_mov_avg_similarity = 0.1 * self.exp_mov_avg_similarity + 0.9 * similarity_vector
-        return nn.Parameter(lru_similarity_vector)
+        return lru_similarity_vector
 
     def reset_memory_content(self):
         """This method exists to implement the memory reset at the beginning of each episode."""
@@ -128,9 +124,9 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         self.register_buffer("exp_mov_avg_similarity", torch.zeros(size=(n_locations, batch_size)))
         self.exp_mov_avg_similarity = self.exp_mov_avg_similarity.to(device)
 
-    def reshape_and_reset_read_write_weights(self, shape):
-        self.read_weights = nn.Parameter(torch.zeros(size=shape))
-        self.write_weights = nn.Parameter(torch.zeros(size=shape))
+    # def reshape_and_reset_read_write_weights(self, shape):
+    #     self.read_weights = nn.Parameter(torch.zeros(size=shape))
+    #     self.write_weights = nn.Parameter(torch.zeros(size=shape))
 
     def forward(self, x):
         raise RuntimeError("It makes no sense to call the memory module on its own. "
