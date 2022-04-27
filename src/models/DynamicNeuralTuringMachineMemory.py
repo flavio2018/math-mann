@@ -116,6 +116,7 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
     def reset_memory_content(self):
         """This method exists to implement the memory reset at the beginning of each episode."""
         self.memory_contents.fill_(0)
+        self.memory_contents.detach_()
         # self.memory_contents = torch.zeros_like(self.memory_contents)  # alternative
 
     def reshape_and_reset_exp_mov_avg_sim(self, batch_size, device):
