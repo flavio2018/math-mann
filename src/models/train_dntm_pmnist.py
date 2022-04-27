@@ -7,6 +7,7 @@ import logging
 
 from src.utils import seed_worker, config_run
 from src.data.perm_seq_mnist import get_dataset
+from src.models.train_dntm_utils import build_model
 
 import numpy as np
 from torch.utils.data import DataLoader
@@ -151,33 +152,6 @@ def valid_step(device, dntm, loss_fn, valid_data_loader):
     valid_epoch_loss /= len(valid_data_loader.sampler)
     valid_accuracy.reset()
     return valid_epoch_loss, valid_accuracy_at_epoch
-
-
-def build_model(ckpt, address_size, content_size, controller_input_size, controller_output_size,
-                controller_hidden_state_size, device, n_locations):
-    dntm_memory = DynamicNeuralTuringMachineMemory(
-        n_locations=n_locations,
-        content_size=content_size,
-        address_size=address_size,
-        controller_input_size=controller_input_size,
-        controller_hidden_state_size=controller_hidden_state_size
-    )
-    dntm = DynamicNeuralTuringMachine(
-        memory=dntm_memory,
-        controller_hidden_state_size=controller_hidden_state_size,
-        controller_input_size=controller_input_size,
-        controller_output_size=controller_output_size
-    ).to(device)
-    if ckpt is not None:
-        logging.info(f"Reloading from checkpoint: {ckpt}")
-        state_dict = torch.load(ckpt)
-        batch_size_ckpt = state_dict['controller_hidden_state'].shape[1]
-        dntm.memory.reset_memory_content()
-        dntm.reshape_and_reset_hidden_states(batch_size=batch_size_ckpt, device=device)
-        dntm.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=batch_size_ckpt, device=device)
-        dntm.memory.reshape_and_reset_read_write_weights(shape=state_dict['memory.read_weights'].shape)
-        dntm.load_state_dict(state_dict)
-    return dntm
 
 
 def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch, batch_size):
