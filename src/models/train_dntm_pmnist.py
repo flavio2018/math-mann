@@ -1,9 +1,7 @@
 """This script trains a DNTM on the PMNIST task."""
-import click
 import torch.nn
-from codetiming import Timer
-from humanfriendly import format_timespan
 import logging
+import hydra
 
 from src.utils import seed_worker, config_run
 from src.data.perm_seq_mnist import get_dataset
@@ -16,38 +14,17 @@ from torchmetrics.classification import Accuracy
 import mlflow
 from src.models.pytorchtools import EarlyStopping
 
-from src.models.DynamicNeuralTuringMachine import DynamicNeuralTuringMachine
-from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachineMemory
+
+@hydra.main(config_path="../../conf", config_name="mnist")
+def click_wrapper(cfg):
+    train_and_test_dntm_smnist(cfg)
 
 
-@click.command()
-@click.option("--loglevel", type=str, default="INFO")
-@click.option("--run_name", type=str, default="")
-@click.option("--seed", type=int, default=2147483647)
-@click.option("--ckpt", type=click.Path(exists=True), default=None)
-@click.option("--lr", type=float, default=0.00001)
-@click.option("--batch_size", type=int, default=4)
-@click.option("--epochs", type=int, default=10)
-@click.option("--n_locations", type=int, default=750)
-@click.option("--content_size", type=int, default=32)
-@click.option("--address_size", type=int, default=8)
-@click.option("--permute", type=bool, default=False)
-@Timer(text=lambda secs: f"Took {format_timespan(secs)}")
-def click_wrapper(loglevel, run_name, seed,
-                  lr, batch_size, epochs,
-                  ckpt, n_locations, content_size, address_size, permute):
-    train_and_test_dntm_smnist(loglevel, run_name, seed,
-                               lr, batch_size, epochs,
-                               ckpt, n_locations, content_size, address_size, permute)
+def train_and_test_dntm_smnist(cfg):
+    run_codename = cfg.run.run_name
+    device, rng, run_name, writer = config_run(cfg.run.loglevel, cfg.run.run_name, cfg.run.seed)
 
-
-def train_and_test_dntm_smnist(loglevel, run_name, seed,
-                               lr, batch_size, epochs,
-                               ckpt, n_locations, content_size, address_size, permute):
-    run_codename = run_name
-    device, rng, run_name, writer = config_run(loglevel, run_name, seed)
-
-    train, test = get_dataset(permute, seed)
+    train, test = get_dataset(cfg.model.permute, cfg.run.seed)
     train.data, train.targets = train.data[:600], train.targets[:600]
     test.data, test.targets = test.data[:100], test.targets[:100]
 
@@ -64,7 +41,7 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
     valid_sampler = SubsetRandomSampler(valid_idx)
 
     train_data_loader = DataLoader(train,
-                                   batch_size=batch_size,
+                                   batch_size=cfg.train.batch_size,
                                    shuffle=False,
                                    worker_init_fn=seed_worker,
                                    sampler=train_sampler,
@@ -72,7 +49,7 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
                                    generator=rng)  # reproducibility
 
     valid_data_loader = DataLoader(train,
-                                   batch_size=batch_size,
+                                   batch_size=cfg.train.batch_size,
                                    shuffle=False,
                                    worker_init_fn=seed_worker,
                                    sampler=valid_sampler,
@@ -81,12 +58,12 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
 
     controller_input_size = 1
     controller_output_size = 10
-    controller_hidden_state_size = 100
-    dntm = build_model(ckpt, address_size, content_size, controller_input_size, controller_output_size,
-                       controller_hidden_state_size, device, n_locations)
+    controller_hidden_state_size = cfg.model.hidden_state_size
+    dntm = build_model(cfg.model.ckpt, cfg.model.address_size, cfg.model.content_size, controller_input_size, controller_output_size,
+                       controller_hidden_state_size, device, cfg.model.n_locations)
 
     loss_fn = torch.nn.NLLLoss()
-    opt = torch.optim.Adam(dntm.parameters(), lr=lr)
+    opt = torch.optim.Adam(dntm.parameters(), lr=cfg.train.lr)
     early_stopping = EarlyStopping(verbose=True,
                                    path=f"../models/checkpoints/{run_name}.pth",
                                    trace_func=logging.info,
@@ -94,21 +71,22 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
 
     with mlflow.start_run(run_name=run_codename):
         mlflow.log_params({
-                "learning_rate": lr,
-                "batch_size": batch_size,
-                "epochs": epochs,
-                "n_locations": n_locations,
-                "content_size": content_size,
-                "address_size": address_size,
+                "learning_rate": cfg.train.lr,
+                "batch_size": cfg.train.batch_size,
+                "epochs": cfg.train.epochs,
+                "n_locations": cfg.model.n_locations,
+                "content_size": cfg.model.content_size,
+                "address_size": cfg.model.address_size,
                 "controller_input_size": controller_input_size,
                 "controller_output_size": controller_output_size
             })
 
         # training
-        for epoch in range(epochs):
+        # torch.autograd.set_detect_anomaly(True)
+        for epoch in range(cfg.train.epochs):
             logging.info(f"Epoch {epoch}")
 
-            train_loss, train_accuracy = training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch, batch_size)
+            train_loss, train_accuracy = training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch, cfg.train.batch_size)
             valid_loss, valid_accuracy = valid_step(device, dntm, loss_fn, valid_data_loader)
 
             writer.add_scalars("Loss/training", {'training_set': train_loss,
@@ -123,7 +101,7 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
 
         # testing
         del train_data_loader
-        test_data_loader = DataLoader(test, batch_size=batch_size)
+        test_data_loader = DataLoader(test, batch_size=cfg.train.batch_size)
 
         logging.info("Starting testing phase")
         test_step(device, dntm, test_data_loader)
