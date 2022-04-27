@@ -199,6 +199,7 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
         model.memory.reset_memory_content()
         model.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
         model.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
+        model.controller_hidden_state = model.controller_hidden_state.detach()
 
         if (epoch == 0) and (batch_i == 0):
             mocked_input = torch.ones(size=(1, mnist_images.shape[0]), device="cuda")
@@ -227,8 +228,6 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
 
         logging.debug(f"Computing gradients")
         loss_value.backward()
-        logging.debug(f"{model.W_output.grad=}")
-        logging.debug(f"{model.b_output.grad=}")
 
         logging.debug(f"Running optimization step")
         opt.step()

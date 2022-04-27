@@ -45,7 +45,7 @@ class DynamicNeuralTuringMachine(nn.Module):
                                                            memory_reading)
 
             output = F.log_softmax(self.W_output @ self.controller_hidden_state + self.b_output, dim=0)
-            self.controller_hidden_state = self.controller_hidden_state.detach()
+            self.controller_hidden_state = self.controller_hidden_state
         return self.controller_hidden_state, output
 
     def _init_parameters(self, init_function):
