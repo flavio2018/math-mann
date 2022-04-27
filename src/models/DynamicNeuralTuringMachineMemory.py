@@ -59,15 +59,14 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         candidate_content_vector = F.relu(self.W_content_hidden @ controller_hidden_state +
                                           torch.mul(alpha, self.W_content_input @ controller_input))
 
-        with torch.no_grad():
-            # this implements the memory NO-OP at writing phase
-            self.memory_contents[:-1, :] = (self.memory_contents[:-1, :]
-                                            - self.write_weights[:-1, :] @ erase_vector.T
-                                            + self.write_weights[:-1, :] @ candidate_content_vector.T)
-            logging.debug(f"{erase_vector.isnan().any()=}")
-            logging.debug(f"{alpha.isnan().any()=}")
-            logging.debug(f"{candidate_content_vector.isnan().any()=}")
-            logging.debug(f"{self.memory_contents.element_size() * self.memory_contents.nelement()=}")
+        # this implements the memory NO-OP at writing phase
+        self.memory_contents[:-1, :] = (self.memory_contents[:-1, :]
+                                        - self.write_weights[:-1, :] @ erase_vector.T
+                                        + self.write_weights[:-1, :] @ candidate_content_vector.T)
+        logging.debug(f"{erase_vector.isnan().any()=}")
+        logging.debug(f"{alpha.isnan().any()=}")
+        logging.debug(f"{candidate_content_vector.isnan().any()=}")
+        logging.debug(f"{self.memory_contents.element_size() * self.memory_contents.nelement()=}")
 
     def _address_memory(self, controller_hidden_state):
         projected_hidden_state = self.W_hat_hidden @ controller_hidden_state
