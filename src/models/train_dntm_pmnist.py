@@ -29,9 +29,9 @@ def train_and_test_dntm_smnist(cfg):
     wandb.init(project="dntm_mnist", entity="flapetr")
     wandb.run.name = cfg.run.codename
 
-    train, test = get_dataset(cfg.model.permute, cfg.run.seed)
-    train.data, train.targets = train.data[:600], train.targets[:600]
-    test.data, test.targets = test.data[:100], test.targets[:100]
+    train, test = get_dataset(cfg.data.permute, cfg.run.seed)
+    train.data, train.targets = train.data[:cfg.data.num_train], train.targets[:cfg.data.num_train]
+    test.data, test.targets = test.data[:cfg.data.num_test], test.targets[:cfg.data.num_test]
 
     # obtain training indices that will be used for validation
     valid_size = 0.2
