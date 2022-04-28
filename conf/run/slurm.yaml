@@ -1,5 +1,4 @@
-run:
-        loglevel: INFO
-        project_path: "/home/petruzze/math-mann/"
-        run_name: default_slurm
-        seed: 18926457840238
+loglevel: INFO
+project_path: "/home/petruzze/math-mann"
+run_name: default_slurm
+seed: 18926457840238

@@ -1,0 +1,5 @@
+n_locations: 750
+content_size: 32
+address_size: 8
+hidden_state_size: 100
+ckpt: # "${run.project_path}/models/checkpoints/CHANGE_ME.pth"
