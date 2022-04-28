@@ -21,12 +21,12 @@ def read_write_consistency_regularizer(sequence_read_weights, sequence_write_wei
     return lambda_ * term.sum()
 
 
-def build_model(ckpt, address_size, content_size, controller_input_size, controller_output_size,
-                controller_hidden_state_size, device, n_locations):
+def build_model(model_conf, controller_input_size, controller_output_size,
+                controller_hidden_state_size, device):
     dntm_memory = DynamicNeuralTuringMachineMemory(
-        n_locations=n_locations,
-        content_size=content_size,
-        address_size=address_size,
+        n_locations=model_conf.n_locations,
+        content_size=model_conf.content_size,
+        address_size=model_conf.address_size,
         controller_input_size=controller_input_size,
         controller_hidden_state_size=controller_hidden_state_size
     )
@@ -36,9 +36,9 @@ def build_model(ckpt, address_size, content_size, controller_input_size, control
         controller_input_size=controller_input_size,
         controller_output_size=controller_output_size
     ).to(device)
-    if ckpt is not None:
-        logging.info(f"Reloading from checkpoint: {ckpt}")
-        state_dict = torch.load(ckpt)
+    if model_conf.ckpt is not None:
+        logging.info(f"Reloading from checkpoint: {model_conf.ckpt}")
+        state_dict = torch.load(model_conf.ckpt)
         batch_size_ckpt = state_dict['controller_hidden_state'].shape[1]
         dntm.memory.reset_memory_content()
         dntm.reshape_and_reset_hidden_states(batch_size=batch_size_ckpt, device=device)
