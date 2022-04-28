@@ -1,52 +1,35 @@
 """This script trains a DNTM on the PMNIST task."""
-import click
 import torch.nn
-from codetiming import Timer
-from humanfriendly import format_timespan
 import logging
+import os
+import hydra
+import wandb
 
-from src.utils import seed_worker, config_run
+from src.utils import seed_worker, configure_reproducibility
 from src.data.perm_seq_mnist import get_dataset
+from src.models.train_dntm_utils import build_model
 
 import numpy as np
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from torchmetrics.classification import Accuracy
-import mlflow
+from torchvision.utils import make_grid
 from src.models.pytorchtools import EarlyStopping
 
-from src.models.DynamicNeuralTuringMachine import DynamicNeuralTuringMachine
-from src.models.DynamicNeuralTuringMachineMemory import DynamicNeuralTuringMachineMemory
+
+@hydra.main(config_path="../../conf", config_name="mnist")
+def click_wrapper(cfg):
+    train_and_test_dntm_smnist(cfg)
 
 
-@click.command()
-@click.option("--loglevel", type=str, default="INFO")
-@click.option("--run_name", type=str, default="")
-@click.option("--seed", type=int, default=2147483647)
-@click.option("--ckpt", type=click.Path(exists=True), default=None)
-@click.option("--lr", type=float, default=0.00001)
-@click.option("--batch_size", type=int, default=4)
-@click.option("--epochs", type=int, default=10)
-@click.option("--n_locations", type=int, default=750)
-@click.option("--content_size", type=int, default=32)
-@click.option("--address_size", type=int, default=8)
-@click.option("--permute", type=bool, default=False)
-@Timer(text=lambda secs: f"Took {format_timespan(secs)}")
-def click_wrapper(loglevel, run_name, seed,
-                  lr, batch_size, epochs,
-                  ckpt, n_locations, content_size, address_size, permute):
-    train_and_test_dntm_smnist(loglevel, run_name, seed,
-                               lr, batch_size, epochs,
-                               ckpt, n_locations, content_size, address_size, permute)
+def train_and_test_dntm_smnist(cfg):
+    device = torch.device("cuda", 0)
+    rng = configure_reproducibility(cfg.run.seed)
 
+    wandb.init(project="dntm_mnist", entity="flapetr")
+    wandb.run.name = cfg.run.codename
 
-def train_and_test_dntm_smnist(loglevel, run_name, seed,
-                               lr, batch_size, epochs,
-                               ckpt, n_locations, content_size, address_size, permute):
-    run_codename = run_name
-    device, rng, run_name, writer = config_run(loglevel, run_name, seed)
-
-    train, test = get_dataset(permute, seed)
+    train, test = get_dataset(cfg.model.permute, cfg.run.seed)
     train.data, train.targets = train.data[:600], train.targets[:600]
     test.data, test.targets = test.data[:100], test.targets[:100]
 
@@ -63,7 +46,7 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
     valid_sampler = SubsetRandomSampler(valid_idx)
 
     train_data_loader = DataLoader(train,
-                                   batch_size=batch_size,
+                                   batch_size=cfg.train.batch_size,
                                    shuffle=False,
                                    worker_init_fn=seed_worker,
                                    sampler=train_sampler,
@@ -71,7 +54,7 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
                                    generator=rng)  # reproducibility
 
     valid_data_loader = DataLoader(train,
-                                   batch_size=batch_size,
+                                   batch_size=cfg.train.batch_size,
                                    shuffle=False,
                                    worker_init_fn=seed_worker,
                                    sampler=valid_sampler,
@@ -80,52 +63,58 @@ def train_and_test_dntm_smnist(loglevel, run_name, seed,
 
     controller_input_size = 1
     controller_output_size = 10
-    controller_hidden_state_size = 100
-    dntm = build_model(ckpt, address_size, content_size, controller_input_size, controller_output_size,
-                       controller_hidden_state_size, device, n_locations)
+    controller_hidden_state_size = cfg.model.hidden_state_size
+    dntm = build_model(cfg.model,
+                       controller_input_size,
+                       controller_output_size,
+                       controller_hidden_state_size,
+                       device)
 
     loss_fn = torch.nn.NLLLoss()
-    opt = torch.optim.Adam(dntm.parameters(), lr=lr)
+    opt = torch.optim.Adam(dntm.parameters(), lr=cfg.train.lr)
     early_stopping = EarlyStopping(verbose=True,
-                                   path=f"../models/checkpoints/{run_name}.pth",
+                                   path=os.path.join(hydra.utils.get_original_cwd(),
+                                                     f"../models/checkpoints/{cfg.run.codename}.pth"),
                                    trace_func=logging.info,
-                                   patience=1000)
+                                   patience=cfg.train.patience)
 
-    with mlflow.start_run(run_name=run_codename):
-        mlflow.log_params({
-                "learning_rate": lr,
-                "batch_size": batch_size,
-                "epochs": epochs,
-                "n_locations": n_locations,
-                "content_size": content_size,
-                "address_size": address_size,
-                "controller_input_size": controller_input_size,
-                "controller_output_size": controller_output_size
-            })
+    wandb.config.update({
+            "learning_rate": cfg.train.lr,
+            "batch_size": cfg.train.batch_size,
+            "epochs": cfg.train.epochs,
+            "n_locations": cfg.model.n_locations,
+            "content_size": cfg.model.content_size,
+            "address_size": cfg.model.address_size,
+            "controller_input_size": controller_input_size,
+            "controller_output_size": controller_output_size
+        })
 
-        # training
-        for epoch in range(epochs):
-            logging.info(f"Epoch {epoch}")
+    # training
+    # torch.autograd.set_detect_anomaly(True)
+    for epoch in range(cfg.train.epochs):
+        logging.info(f"Epoch {epoch}")
 
-            train_loss, train_accuracy = training_step(device, dntm, loss_fn, opt, train_data_loader, writer, epoch, batch_size)
-            valid_loss, valid_accuracy = valid_step(device, dntm, loss_fn, valid_data_loader)
+        train_loss, train_accuracy = training_step(device, dntm, loss_fn, opt,
+                                                   train_data_loader, epoch, cfg.train.batch_size)
+        valid_loss, valid_accuracy = valid_step(device, dntm, loss_fn, valid_data_loader)
 
-            writer.add_scalars("Loss/training", {'training_set': train_loss,
-                                                 'validation_set': valid_loss}, epoch)
-            writer.add_scalars("Accuracy/training", {'training_set': train_accuracy,
-                                                     'validation_set': valid_accuracy}, epoch)
+        wandb.log({'loss_training_set': train_loss,
+                   'loss_validation_set': valid_loss})
+        wandb.log({'acc_training_set': train_accuracy,
+                   'acc_validation_set': valid_accuracy})
+        log_weights_gradient(dntm, wandb)
 
-            early_stopping(valid_loss, dntm)
-            if early_stopping.early_stop:
-                logging.info("Early stopping")
-                break
+        early_stopping(valid_loss, dntm)
+        if early_stopping.early_stop:
+            logging.info("Early stopping")
+            break
 
-        # testing
-        del train_data_loader
-        test_data_loader = DataLoader(test, batch_size=batch_size)
+    # testing
+    del train_data_loader
+    test_data_loader = DataLoader(test, batch_size=cfg.train.batch_size)
 
-        logging.info("Starting testing phase")
-        test_step(device, dntm, test_data_loader)
+    logging.info("Starting testing phase")
+    test_step(device, dntm, test_data_loader)
 
 
 def valid_step(device, dntm, loss_fn, valid_data_loader):
@@ -153,34 +142,7 @@ def valid_step(device, dntm, loss_fn, valid_data_loader):
     return valid_epoch_loss, valid_accuracy_at_epoch
 
 
-def build_model(ckpt, address_size, content_size, controller_input_size, controller_output_size,
-                controller_hidden_state_size, device, n_locations):
-    dntm_memory = DynamicNeuralTuringMachineMemory(
-        n_locations=n_locations,
-        content_size=content_size,
-        address_size=address_size,
-        controller_input_size=controller_input_size,
-        controller_hidden_state_size=controller_hidden_state_size
-    )
-    dntm = DynamicNeuralTuringMachine(
-        memory=dntm_memory,
-        controller_hidden_state_size=controller_hidden_state_size,
-        controller_input_size=controller_input_size,
-        controller_output_size=controller_output_size
-    ).to(device)
-    if ckpt is not None:
-        logging.info(f"Reloading from checkpoint: {ckpt}")
-        state_dict = torch.load(ckpt)
-        batch_size_ckpt = state_dict['controller_hidden_state'].shape[1]
-        dntm.memory.reset_memory_content()
-        dntm.reshape_and_reset_hidden_states(batch_size=batch_size_ckpt, device=device)
-        dntm.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=batch_size_ckpt, device=device)
-        dntm.memory.reshape_and_reset_read_write_weights(shape=state_dict['memory.read_weights'].shape)
-        dntm.load_state_dict(state_dict)
-    return dntm
-
-
-def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch, batch_size):
+def training_step(device, model, loss_fn, opt, train_data_loader, epoch, batch_size):
     train_accuracy = Accuracy().to(device)
 
     epoch_loss = 0
@@ -191,14 +153,19 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
         model.zero_grad()
 
         if (epoch == 0) and (batch_i == 0):
-            writer.add_images(f"Training data batch {batch_i}",
-                              mnist_images.reshape(batch_size, -1, 28, 1),
-                              dataformats='NHWC')
+            mnist_batch_img = wandb.Image(make_grid(mnist_images.reshape(batch_size, 1, 28, -1)))
+            wandb.log({f"Training data batch {batch_i}, epoch {epoch}": mnist_batch_img})
 
         logging.debug(f"Resetting the memory")
         model.memory.reset_memory_content()
         model.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
         model.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
+        model.controller_hidden_state = model.controller_hidden_state.detach()
+
+        # if (epoch == 0) and (batch_i == 0):
+        #     mocked_input = torch.ones(size=(1, mnist_images.shape[0]), device="cuda")
+        #     hidden_state, output = model(mocked_input)
+        #     writer.add_graph(model, mocked_input)
 
         logging.debug(f"Moving image to GPU")
         mnist_images, targets = mnist_images.to(device), targets.to(device)
@@ -209,10 +176,12 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
             __, output = model(pixels.view(1, -1))
 
         if batch_i == 0:
-            writer.add_text(tag="First batch preds vs targets",
-                            text_string='pred:\t' + ' '.join([str(p.item()) for p in output.argmax(axis=0)]) +
-                                        "\n\n target:\t" + ' '.join([str(t.item()) for t in targets]),
-                            global_step=epoch)
+            columns = ["Predictions", "Targets"]
+            data = zip([str(p.item()) for p in output.argmax(axis=0)],
+                       [str(t.item()) for t in targets])
+            data = [list(row) for row in data]
+            table = wandb.Table(data=data, columns=columns)
+            wandb.log({"First batch preds vs targets": table})
 
         logging.debug(f"Computing loss value")
         logging.debug(f"{targets=}")
@@ -222,13 +191,12 @@ def training_step(device, model, loss_fn, opt, train_data_loader, writer, epoch,
 
         logging.debug(f"Computing gradients")
         loss_value.backward()
-        logging.debug(f"{model.W_output.grad=}")
-        logging.debug(f"{model.b_output.grad=}")
 
         logging.debug(f"Running optimization step")
         opt.step()
 
         batch_accuracy = train_accuracy(output.argmax(axis=0), targets)
+
     accuracy_over_batches = train_accuracy.compute()
     epoch_loss /= len(train_data_loader.sampler)
     train_accuracy.reset()
@@ -256,7 +224,15 @@ def test_step(device, dntm, test_data_loader):
 
         batch_accuracy = test_accuracy(output.argmax(axis=0), targets)
     test_accuracy = test_accuracy.compute()
-    mlflow.log_metric(key="test_accuracy", value=test_accuracy.item())
+    wandb.log({"test_accuracy": test_accuracy.item()})
+
+
+def log_weights_gradient(dntm, wandb):
+    for param_name, param in dntm.named_parameters():
+        if param.grad is not None:
+            wandb.log({f"{param_name}_gradient": wandb.Histogram(param.grad.cpu())})
+        else:
+            logging.warning(f"{param_name} gradient is None!")
 
 
 if __name__ == "__main__":

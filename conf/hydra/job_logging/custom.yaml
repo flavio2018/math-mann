@@ -1,0 +1,14 @@
+version: 1
+formatters:
+  simple:
+    format: "%(levelname)s:%(filename)s:%(message)s"
+handlers:
+  file:
+    class: logging.FileHandler
+    formatter: simple
+    filename: "${run.codename}.log"
+root:
+  level: ${run.loglevel}
+  handlers: [file]
+
+disable_existing_loggers: false

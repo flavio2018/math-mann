@@ -43,10 +43,6 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         self.u_hidden_content_alpha = nn.Parameter(torch.zeros(size=(1, controller_hidden_state_size)))
         self.b_content_alpha = nn.Parameter(torch.zeros(1))
 
-        # read & write weights
-        self.read_weights = nn.Parameter(torch.zeros(size=(n_locations, 1)))
-        self.write_weights = nn.Parameter(torch.zeros(size=(n_locations, 1)))
-
     def read(self, controller_hidden_state):
         self.read_weights = self._address_memory(controller_hidden_state)
         # this implements the memory NO-OP at reading phase
@@ -63,15 +59,14 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         candidate_content_vector = F.relu(self.W_content_hidden @ controller_hidden_state +
                                           torch.mul(alpha, self.W_content_input @ controller_input))
 
-        with torch.no_grad():
-            # this implements the memory NO-OP at writing phase
-            self.memory_contents[:-1, :] = (self.memory_contents[:-1, :]
-                                            - self.write_weights[:-1, :] @ erase_vector.T
-                                            + self.write_weights[:-1, :] @ candidate_content_vector.T)
-            logging.debug(f"{erase_vector.isnan().any()=}")
-            logging.debug(f"{alpha.isnan().any()=}")
-            logging.debug(f"{candidate_content_vector.isnan().any()=}")
-            logging.debug(f"{self.memory_contents.element_size() * self.memory_contents.nelement()=}")
+        # this implements the memory NO-OP at writing phase
+        self.memory_contents[:-1, :] = (self.memory_contents[:-1, :]
+                                        - self.write_weights[:-1, :] @ erase_vector.T
+                                        + self.write_weights[:-1, :] @ candidate_content_vector.T)
+        logging.debug(f"{erase_vector.isnan().any()=}")
+        logging.debug(f"{alpha.isnan().any()=}")
+        logging.debug(f"{candidate_content_vector.isnan().any()=}")
+        logging.debug(f"{self.memory_contents.element_size() * self.memory_contents.nelement()=}")
 
     def _address_memory(self, controller_hidden_state):
         projected_hidden_state = self.W_hat_hidden @ controller_hidden_state
@@ -115,11 +110,12 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         lru_similarity_vector = F.softmax(similarity_vector - lru_gamma * self.exp_mov_avg_similarity, dim=0)
         with torch.no_grad():
             self.exp_mov_avg_similarity = 0.1 * self.exp_mov_avg_similarity + 0.9 * similarity_vector
-        return nn.Parameter(lru_similarity_vector)
+        return lru_similarity_vector
 
     def reset_memory_content(self):
         """This method exists to implement the memory reset at the beginning of each episode."""
         self.memory_contents.fill_(0)
+        self.memory_contents.detach_()
         # self.memory_contents = torch.zeros_like(self.memory_contents)  # alternative
 
     def reshape_and_reset_exp_mov_avg_sim(self, batch_size, device):
@@ -128,9 +124,9 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
         self.register_buffer("exp_mov_avg_similarity", torch.zeros(size=(n_locations, batch_size)))
         self.exp_mov_avg_similarity = self.exp_mov_avg_similarity.to(device)
 
-    def reshape_and_reset_read_write_weights(self, shape):
-        self.read_weights = nn.Parameter(torch.zeros(size=shape))
-        self.write_weights = nn.Parameter(torch.zeros(size=shape))
+    # def reshape_and_reset_read_write_weights(self, shape):
+    #     self.read_weights = nn.Parameter(torch.zeros(size=shape))
+    #     self.write_weights = nn.Parameter(torch.zeros(size=shape))
 
     def forward(self, x):
         raise RuntimeError("It makes no sense to call the memory module on its own. "
