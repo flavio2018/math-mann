@@ -27,9 +27,7 @@ def train_and_test_dntm_smnist(cfg):
     device = torch.device("cuda", 0)
     rng = configure_reproducibility(cfg.run.seed)
 
-    wandb.config = omegaconf.OmegaConf.to_container(
-        cfg, resolve=True, throw_on_missing=True)
-
+    wandb.config = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
     wandb.init(project="dntm_mnist", entity="flapetr")
     wandb.run.name = cfg.run.codename
 
@@ -212,14 +210,6 @@ def test_step(device, dntm, test_data_loader):
         batch_accuracy = test_accuracy(output.argmax(axis=0), targets)
     test_accuracy = test_accuracy.compute()
     wandb.log({"test_accuracy": test_accuracy.item()})
-
-
-def log_weights_gradient(dntm, wandb):
-    for param_name, param in dntm.named_parameters():
-        if param.grad is not None:
-            wandb.log({f"{param_name}_gradient": wandb.Histogram(param.grad.cpu())})
-        else:
-            logging.warning(f"{param_name} gradient is None!")
 
 
 if __name__ == "__main__":
