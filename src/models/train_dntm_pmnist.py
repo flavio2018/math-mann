@@ -9,7 +9,7 @@ import wandb
 from src.utils import seed_worker, configure_reproducibility
 from src.data.perm_seq_mnist import get_dataset
 from src.models.train_dntm_utils import build_model
-from src.wandb_utils import log_weights_gradient
+from src.wandb_utils import log_weights_gradient, log_preds_and_targets
 
 import numpy as np
 from torch.utils.data import DataLoader
@@ -73,7 +73,6 @@ def train_and_test_dntm_smnist(cfg):
                                                      f"../models/checkpoints/{cfg.run.codename}.pth"),
                                    trace_func=logging.info,
                                    patience=cfg.train.patience)
-
 
     # training
     # torch.autograd.set_detect_anomaly(True)
@@ -156,13 +155,7 @@ def training_step(device, model, loss_fn, opt, train_data_loader, epoch, batch_s
             logging.debug(f"Pixel {pixel_i}")
             __, output = model(pixels.view(1, -1))
 
-        if batch_i == 0:
-            columns = ["Predictions", "Targets"]
-            data = zip([str(p.item()) for p in output.argmax(axis=0)],
-                       [str(t.item()) for t in targets])
-            data = [list(row) for row in data]
-            table = wandb.Table(data=data, columns=columns)
-            wandb.log({"First batch preds vs targets": table})
+        log_preds_and_targets(batch_i, output, targets)
 
         logging.debug(f"Computing loss value")
         logging.debug(f"{targets=}")
