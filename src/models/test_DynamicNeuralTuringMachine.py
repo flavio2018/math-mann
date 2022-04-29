@@ -125,7 +125,7 @@ def test_dntm_controller_hidden_state_contains_no_nan_values_after_update():
     dntm.memory._reshape_and_reset_exp_mov_avg_sim(batch_size=BATCH_SIZE, device=torch.device("cpu"))
 
     with torch.no_grad():
-        dntm(mocked_controller_input)
+        dntm.step_on_batch_element(mocked_controller_input)
 
     assert not dntm.controller_hidden_state.isnan().any()
 
@@ -148,6 +148,6 @@ def test_dntm_output_shape():
     dntm.memory._reshape_and_reset_exp_mov_avg_sim(batch_size=BATCH_SIZE, device=torch.device("cpu"))
 
     with torch.no_grad():
-        _, output = dntm(mocked_controller_input)
+        _, output = dntm.step_on_batch_element(mocked_controller_input)
 
     assert output.shape == (10, 4)
