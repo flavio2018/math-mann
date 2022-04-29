@@ -63,10 +63,10 @@ def train_and_test_dntm_smnist(cfg):
                                    num_workers=0,
                                    generator=rng)  # reproducibility
 
-    dntm = build_model(cfg.model, device)
+    model = build_model(cfg.model, device)
 
     loss_fn = torch.nn.NLLLoss()
-    opt = torch.optim.Adam(dntm.parameters(), lr=cfg.train.lr)
+    opt = torch.optim.Adam(model.parameters(), lr=cfg.train.lr)
     early_stopping = EarlyStopping(verbose=True,
                                    path=os.path.join(hydra.utils.get_original_cwd(),
                                                      f"../models/checkpoints/{cfg.run.codename}.pth"),
@@ -79,17 +79,17 @@ def train_and_test_dntm_smnist(cfg):
     for epoch in range(cfg.train.epochs):
         logging.info(f"Epoch {epoch}")
 
-        train_loss, train_accuracy = training_step(device, dntm, loss_fn, opt,
+        train_loss, train_accuracy = training_step(device, model, loss_fn, opt,
                                                    train_data_loader, epoch, cfg.train.batch_size)
-        valid_loss, valid_accuracy = valid_step(device, dntm, loss_fn, valid_data_loader)
+        valid_loss, valid_accuracy = valid_step(device, model, loss_fn, valid_data_loader)
 
         wandb.log({'loss_training_set': train_loss,
                    'loss_validation_set': valid_loss})
         wandb.log({'acc_training_set': train_accuracy,
                    'acc_validation_set': valid_accuracy})
-        log_weights_gradient(dntm, wandb)
+        log_weights_gradient(model, wandb)
 
-        early_stopping(valid_loss, dntm)
+        early_stopping(valid_loss, model)
         if early_stopping.early_stop:
             logging.info("Early stopping")
             break
@@ -99,23 +99,23 @@ def train_and_test_dntm_smnist(cfg):
     test_data_loader = DataLoader(test, batch_size=cfg.train.batch_size)
 
     logging.info("Starting testing phase")
-    test_step(device, dntm, test_data_loader)
+    test_step(device, model, test_data_loader)
 
 
-def valid_step(device, dntm, loss_fn, valid_data_loader):
+def valid_step(device, model, loss_fn, valid_data_loader):
     valid_accuracy = Accuracy().to(device)
     valid_epoch_loss = 0
-    dntm.eval()
+    model.eval()
     for batch_i, (mnist_images, targets) in enumerate(valid_data_loader):
-        dntm.memory.reset_memory_content()
-        dntm.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
-        dntm.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
+        model.memory.reset_memory_content()
+        model.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
+        model.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
 
         mnist_images, targets = mnist_images.to(device), targets.to(device)
 
         for pixel_i, pixels in enumerate(mnist_images.T):
             logging.debug(f"Pixel {pixel_i}")
-            __, output = dntm(pixels.view(1, -1))
+            __, output = model(pixels.view(1, -1))
 
         loss_value = loss_fn(output.T, targets)
         valid_epoch_loss += loss_value.item() * mnist_images.size(0)
@@ -188,16 +188,17 @@ def training_step(device, model, loss_fn, opt, train_data_loader, epoch, batch_s
     return epoch_loss, accuracy_over_batches
 
 
-def test_step(device, dntm, test_data_loader):
+def test_step(device, model, test_data_loader):
     test_accuracy = Accuracy().to(device)
 
-    dntm.eval()
+    model.eval()
     for batch_i, (mnist_images, targets) in enumerate(test_data_loader):
         logging.info(f"MNIST batch {batch_i}")
 
-        dntm.memory.reset_memory_content()
-        dntm.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
-        dntm.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
+        model.memory.reset_memory_content()
+        model.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
+        model.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
+        model.controller_hidden_state = model.controller_hidden_state.detach()
 
         logging.debug(f"Moving image to GPU")
         mnist_images, targets = mnist_images.to(device), targets.to(device)
@@ -205,7 +206,7 @@ def test_step(device, dntm, test_data_loader):
         logging.debug(f"Looping through image pixels")
         for pixel_i, pixels in enumerate(mnist_images.T):
             logging.debug(f"Pixel {pixel_i}")
-            __, output = dntm(pixels.view(1, -1))
+            __, output = model(pixels.view(1, -1))
 
         batch_accuracy = test_accuracy(output.argmax(axis=0), targets)
     test_accuracy = test_accuracy.compute()
