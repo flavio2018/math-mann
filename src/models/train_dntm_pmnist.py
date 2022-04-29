@@ -61,14 +61,7 @@ def train_and_test_dntm_smnist(cfg):
                                    num_workers=0,
                                    generator=rng)  # reproducibility
 
-    controller_input_size = 1
-    controller_output_size = 10
-    controller_hidden_state_size = cfg.model.hidden_state_size
-    dntm = build_model(cfg.model,
-                       controller_input_size,
-                       controller_output_size,
-                       controller_hidden_state_size,
-                       device)
+    dntm = build_model(cfg.model, device)
 
     loss_fn = torch.nn.NLLLoss()
     opt = torch.optim.Adam(dntm.parameters(), lr=cfg.train.lr)

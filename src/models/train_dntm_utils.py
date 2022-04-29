@@ -21,21 +21,22 @@ def read_write_consistency_regularizer(sequence_read_weights, sequence_write_wei
     return lambda_ * term.sum()
 
 
-def build_model(model_conf, controller_input_size, controller_output_size,
-                controller_hidden_state_size, device):
+def build_model(model_conf, device):
     dntm_memory = DynamicNeuralTuringMachineMemory(
         n_locations=model_conf.n_locations,
         content_size=model_conf.content_size,
         address_size=model_conf.address_size,
-        controller_input_size=controller_input_size,
-        controller_hidden_state_size=controller_hidden_state_size
+        controller_input_size=model_conf.controller_input_size,
+        controller_hidden_state_size=model_conf.controller_hidden_state_size
     )
+
     dntm = DynamicNeuralTuringMachine(
         memory=dntm_memory,
-        controller_hidden_state_size=controller_hidden_state_size,
-        controller_input_size=controller_input_size,
-        controller_output_size=controller_output_size
+        controller_hidden_state_size=model_conf.controller_hidden_state_size,
+        controller_input_size=model_conf.controller_input_size,
+        controller_output_size=model_conf.controller_output_size
     ).to(device)
+
     if model_conf.ckpt is not None:
         logging.info(f"Reloading from checkpoint: {model_conf.ckpt}")
         state_dict = torch.load(model_conf.ckpt)
