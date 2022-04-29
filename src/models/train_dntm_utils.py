@@ -56,8 +56,25 @@ def build_dntm(model_conf, device):
     return dntm
 
 
+class CustomLSTM(torch.nn.Module):
+    def __init__(self, input_size, hidden_size, proj_size, device):
+        super().__init__()
+        self.lstm = torch.nn.LSTM(input_size=input_size,
+                                  hidden_size=hidden_size,
+                                  proj_size=proj_size).to(device)
+
+    def forward(self, batch):
+        full_output, h_n_c_n = self.lstm(batch)
+        last_output = full_output[-1, :, :].view((10, -1))  # select only the output for the last timestep and reshape to 2D
+        log_soft_output = torch.nn.functional.log_softmax(last_output, dim=0)
+        return h_n_c_n, log_soft_output
+
+    def prepare_for_batch(self, batch, device):
+        return
+
+
 def build_rnn(model_conf, device):
-    return torch.nn.GRU(input_size=model_conf.input_size,
-                        hidden_size=model_conf.hidden_size,
-                        proj_size=model_conf.output_size,
-                        batch_first=True).to(device)
+    return CustomLSTM(input_size=model_conf.input_size,
+                      hidden_size=model_conf.hidden_size,
+                      proj_size=model_conf.output_size,
+                      device=device)
