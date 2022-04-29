@@ -6,14 +6,11 @@ import hydra
 import omegaconf
 import wandb
 
-from src.utils import seed_worker, configure_reproducibility
-from src.data.perm_seq_mnist import get_dataset
+from src.data.perm_seq_mnist import get_dataloaders
 from src.models.train_dntm_utils import build_model
+from src.utils import configure_reproducibility
 from src.wandb_utils import log_weights_gradient, log_preds_and_targets
 
-import numpy as np
-from torch.utils.data import DataLoader
-from torch.utils.data.sampler import SubsetRandomSampler
 from torchmetrics.classification import Accuracy
 from torchvision.utils import make_grid
 from src.models.pytorchtools import EarlyStopping
@@ -32,37 +29,7 @@ def train_and_test_dntm_smnist(cfg):
     wandb.init(project="dntm_mnist", entity="flapetr")
     wandb.run.name = cfg.run.codename
 
-    train, _ = get_dataset(cfg.data.permute, cfg.run.seed)
-    train.data, train.targets = train.data[:cfg.data.num_train], train.targets[:cfg.data.num_train]
-
-    # obtain training indices that will be used for validation
-    valid_size = 0.2
-    num_train = len(train)
-    indices = list(range(num_train))
-    np.random.shuffle(indices)
-    split = int(np.floor(valid_size * num_train))
-    train_idx, valid_idx = indices[split:], indices[:split]
-
-    # define samplers for obtaining training and validation batches
-    train_sampler = SubsetRandomSampler(train_idx)
-    valid_sampler = SubsetRandomSampler(valid_idx)
-
-    train_data_loader = DataLoader(train,
-                                   batch_size=cfg.train.batch_size,
-                                   shuffle=False,
-                                   worker_init_fn=seed_worker,
-                                   sampler=train_sampler,
-                                   num_workers=0,
-                                   generator=rng)  # reproducibility
-
-    valid_data_loader = DataLoader(train,
-                                   batch_size=cfg.train.batch_size,
-                                   shuffle=False,
-                                   worker_init_fn=seed_worker,
-                                   sampler=valid_sampler,
-                                   num_workers=0,
-                                   generator=rng)  # reproducibility
-
+    train_dataloader, valid_dataloader = get_dataloaders(cfg, rng)
     model = build_model(cfg.model, device)
 
     loss_fn = torch.nn.NLLLoss()
@@ -79,14 +46,14 @@ def train_and_test_dntm_smnist(cfg):
         logging.info(f"Epoch {epoch}")
 
         train_loss, train_accuracy = training_step(device, model, loss_fn, opt,
-                                                   train_data_loader, epoch, cfg.train.batch_size)
-        valid_loss, valid_accuracy = valid_step(device, model, loss_fn, valid_data_loader)
+                                                   train_dataloader, epoch, cfg.train.batch_size)
+        valid_loss, valid_accuracy = valid_step(device, model, loss_fn, valid_dataloader)
 
         wandb.log({'loss_training_set': train_loss,
                    'loss_validation_set': valid_loss})
         wandb.log({'acc_training_set': train_accuracy,
                    'acc_validation_set': valid_accuracy})
-        log_weights_gradient(model, wandb)
+        log_weights_gradient(model)
 
         early_stopping(valid_loss, model)
         if early_stopping.early_stop:
