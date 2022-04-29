@@ -27,8 +27,14 @@ class DynamicNeuralTuringMachine(nn.Module):
 
         self._init_parameters(init_function=nn.init.xavier_uniform_)
 
-    def forward(self, x):
+    def forward(self, batch):
+        logging.debug(f"Looping through image pixels")
+        for i_element, batch_row in enumerate(batch):
+            logging.debug(f"Pixel {i_element}")
+            controller_hidden_state, output = self.step_on_batch_element(batch_row.view(1, -1))
+        return controller_hidden_state, output
 
+    def step_on_batch_element(self, x):
         with torch.no_grad():
             logging.debug(f"{self.controller_hidden_state.isnan().any()=}")
             logging.debug(f"{self.controller_hidden_state.mean()=}")

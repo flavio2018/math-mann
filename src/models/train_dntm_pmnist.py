@@ -150,17 +150,11 @@ def training_step(device, model, loss_fn, opt, train_data_loader, epoch, batch_s
         logging.debug(f"Moving image to GPU")
         mnist_images, targets = mnist_images.to(device), targets.to(device)
 
-        logging.debug(f"Looping through image pixels")
-        for pixel_i, pixels in enumerate(mnist_images.T):
-            logging.debug(f"Pixel {pixel_i}")
-            __, output = model(pixels.view(1, -1))
-
+        _, output = model(mnist_images.T)
         log_preds_and_targets(batch_i, output, targets)
 
         logging.debug(f"Computing loss value")
-        logging.debug(f"{targets=}")
         loss_value = loss_fn(output.T, targets)
-        # writer.add_scalar("per-batch_loss/train", loss_value, batch_i)
         epoch_loss += loss_value.item() * mnist_images.size(0)
 
         logging.debug(f"Computing gradients")
