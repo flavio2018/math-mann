@@ -1,0 +1,4 @@
+name: rnn
+input_size: 10
+hidden_size: 2048
+output_size: 10

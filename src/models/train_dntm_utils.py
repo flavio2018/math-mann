@@ -22,6 +22,13 @@ def read_write_consistency_regularizer(sequence_read_weights, sequence_write_wei
 
 
 def build_model(model_conf, device):
+    if model_conf.name == 'dntm':
+        return build_dntm(model_conf, device)
+    else:
+        return build_rnn(model_conf, device)
+
+
+def build_dntm(model_conf, device):
     dntm_memory = DynamicNeuralTuringMachineMemory(
         n_locations=model_conf.n_locations,
         content_size=model_conf.content_size,
@@ -49,3 +56,8 @@ def build_model(model_conf, device):
     return dntm
 
 
+def build_rnn(model_conf, device):
+    return torch.nn.GRU(input_size=model_conf.input_size,
+                        hidden_size=model_conf.hidden_size,
+                        proj_size=model_conf.output_size,
+                        batch_first=True).to(device)
