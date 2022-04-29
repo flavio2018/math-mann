@@ -32,9 +32,8 @@ def train_and_test_dntm_smnist(cfg):
     wandb.init(project="dntm_mnist", entity="flapetr")
     wandb.run.name = cfg.run.codename
 
-    train, test = get_dataset(cfg.data.permute, cfg.run.seed)
+    train, _ = get_dataset(cfg.data.permute, cfg.run.seed)
     train.data, train.targets = train.data[:cfg.data.num_train], train.targets[:cfg.data.num_train]
-    test.data, test.targets = test.data[:cfg.data.num_test], test.targets[:cfg.data.num_test]
 
     # obtain training indices that will be used for validation
     valid_size = 0.2
@@ -93,13 +92,6 @@ def train_and_test_dntm_smnist(cfg):
         if early_stopping.early_stop:
             logging.info("Early stopping")
             break
-
-    # testing
-    del train_data_loader
-    test_data_loader = DataLoader(test, batch_size=cfg.train.batch_size)
-
-    logging.info("Starting testing phase")
-    test_step(device, model, test_data_loader)
 
 
 def valid_step(device, model, loss_fn, valid_data_loader):
@@ -162,25 +154,6 @@ def training_step(device, model, loss_fn, opt, train_data_loader, epoch, batch_s
     epoch_loss /= len(train_data_loader.sampler)
     train_accuracy.reset()
     return epoch_loss, accuracy_over_batches
-
-
-def test_step(device, model, test_data_loader):
-    test_accuracy = Accuracy().to(device)
-
-    model.eval()
-    for batch_i, (mnist_images, targets) in enumerate(test_data_loader):
-        logging.info(f"MNIST batch {batch_i}")
-
-        model.prepare_for_batch(mnist_images, device)
-
-        mnist_images, targets = mnist_images.to(device), targets.to(device)
-
-        for pixel_i, pixels in enumerate(mnist_images.T):
-            __, output = model(pixels.view(1, -1))
-
-        batch_accuracy = test_accuracy(output.argmax(axis=0), targets)
-    test_accuracy = test_accuracy.compute()
-    wandb.log({"test_accuracy": test_accuracy.item()})
 
 
 if __name__ == "__main__":
