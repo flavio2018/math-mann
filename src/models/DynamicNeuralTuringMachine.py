@@ -27,25 +27,30 @@ class DynamicNeuralTuringMachine(nn.Module):
 
         self._init_parameters(init_function=nn.init.xavier_uniform_)
 
-    def forward(self, x, num_addressing_steps=1):
+    def forward(self, input):
+        if len(input.shape) == 2:
+            return self.step_on_batch_element(input)
+        elif len(input.shape) == 3:
+            return self.step_on_batch(input)
 
-        if num_addressing_steps < 1:
-            raise ValueError(f"num_addressing_steps should be at least 1, received: {num_addressing_steps}")
+    def step_on_batch(self, batch):
+        logging.debug(f"Looping through image pixels")
+        for i_element, batch_row in enumerate(batch):
+            logging.debug(f"Pixel {i_element}")
+            controller_hidden_state, output = self.step_on_batch_element(batch_row.view(1, -1))
+        return controller_hidden_state, output
 
+    def step_on_batch_element(self, x):
         with torch.no_grad():
             logging.debug(f"{self.controller_hidden_state.isnan().any()=}")
             logging.debug(f"{self.controller_hidden_state.mean()=}")
             logging.debug(f"{self.controller_hidden_state.max()=}")
             logging.debug(f"{self.controller_hidden_state.min()=}")
 
-        for __ in range(num_addressing_steps):
-            memory_reading = self.memory.read(self.controller_hidden_state)
-            self.memory.update(self.controller_hidden_state, x)
-            self.controller_hidden_state = self.controller(x, self.controller_hidden_state,
-                                                           memory_reading)
-
-            output = F.log_softmax(self.W_output @ self.controller_hidden_state + self.b_output, dim=0)
-            self.controller_hidden_state = self.controller_hidden_state
+        memory_reading = self.memory.read(self.controller_hidden_state)
+        self.memory.update(self.controller_hidden_state, x)
+        self.controller_hidden_state = self.controller(x, self.controller_hidden_state, memory_reading)
+        output = F.log_softmax(self.W_output @ self.controller_hidden_state + self.b_output, dim=0)
         return self.controller_hidden_state, output
 
     def _init_parameters(self, init_function):
@@ -68,7 +73,13 @@ class DynamicNeuralTuringMachine(nn.Module):
                 torch.nn.init.constant_(parameter, 0.1)
                 logging.debug(f"{name}: {parameter}")
 
-    def reshape_and_reset_hidden_states(self, batch_size, device):
+    def prepare_for_batch(self, batch, device):
+        self.memory._reset_memory_content()
+        self._reshape_and_reset_hidden_states(batch_size=batch.shape[0], device=device)
+        self.memory._reshape_and_reset_exp_mov_avg_sim(batch_size=batch.shape[0], device=device)
+        self.controller_hidden_state = self.controller_hidden_state.detach()
+
+    def _reshape_and_reset_hidden_states(self, batch_size, device):
         with torch.no_grad():
             controller_hidden_state_size = self.W_output.shape[1]
         self.register_buffer("controller_hidden_state", torch.zeros(size=(controller_hidden_state_size, batch_size)))

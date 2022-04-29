@@ -3,15 +3,14 @@ import torch.nn
 import logging
 import os
 import hydra
+import omegaconf
 import wandb
 
-from src.utils import seed_worker, configure_reproducibility
-from src.data.perm_seq_mnist import get_dataset
+from src.data.perm_seq_mnist import get_dataloaders
 from src.models.train_dntm_utils import build_model
+from src.utils import configure_reproducibility
+from src.wandb_utils import log_weights_gradient, log_preds_and_targets
 
-import numpy as np
-from torch.utils.data import DataLoader
-from torch.utils.data.sampler import SubsetRandomSampler
 from torchmetrics.classification import Accuracy
 from torchvision.utils import make_grid
 from src.models.pytorchtools import EarlyStopping
@@ -26,111 +25,53 @@ def train_and_test_dntm_smnist(cfg):
     device = torch.device("cuda", 0)
     rng = configure_reproducibility(cfg.run.seed)
 
+    wandb.config = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
     wandb.init(project="dntm_mnist", entity="flapetr")
     wandb.run.name = cfg.run.codename
 
-    train, test = get_dataset(cfg.data.permute, cfg.run.seed)
-    train.data, train.targets = train.data[:cfg.data.num_train], train.targets[:cfg.data.num_train]
-    test.data, test.targets = test.data[:cfg.data.num_test], test.targets[:cfg.data.num_test]
-
-    # obtain training indices that will be used for validation
-    valid_size = 0.2
-    num_train = len(train)
-    indices = list(range(num_train))
-    np.random.shuffle(indices)
-    split = int(np.floor(valid_size * num_train))
-    train_idx, valid_idx = indices[split:], indices[:split]
-
-    # define samplers for obtaining training and validation batches
-    train_sampler = SubsetRandomSampler(train_idx)
-    valid_sampler = SubsetRandomSampler(valid_idx)
-
-    train_data_loader = DataLoader(train,
-                                   batch_size=cfg.train.batch_size,
-                                   shuffle=False,
-                                   worker_init_fn=seed_worker,
-                                   sampler=train_sampler,
-                                   num_workers=0,
-                                   generator=rng)  # reproducibility
-
-    valid_data_loader = DataLoader(train,
-                                   batch_size=cfg.train.batch_size,
-                                   shuffle=False,
-                                   worker_init_fn=seed_worker,
-                                   sampler=valid_sampler,
-                                   num_workers=0,
-                                   generator=rng)  # reproducibility
-
-    controller_input_size = 1
-    controller_output_size = 10
-    controller_hidden_state_size = cfg.model.hidden_state_size
-    dntm = build_model(cfg.model,
-                       controller_input_size,
-                       controller_output_size,
-                       controller_hidden_state_size,
-                       device)
+    train_dataloader, valid_dataloader = get_dataloaders(cfg, rng)
+    model = build_model(cfg.model, device)
 
     loss_fn = torch.nn.NLLLoss()
-    opt = torch.optim.Adam(dntm.parameters(), lr=cfg.train.lr)
+    opt = torch.optim.Adam(model.parameters(), lr=cfg.train.lr)
     early_stopping = EarlyStopping(verbose=True,
                                    path=os.path.join(hydra.utils.get_original_cwd(),
                                                      f"../models/checkpoints/{cfg.run.codename}.pth"),
                                    trace_func=logging.info,
                                    patience=cfg.train.patience)
 
-    wandb.config.update({
-            "learning_rate": cfg.train.lr,
-            "batch_size": cfg.train.batch_size,
-            "epochs": cfg.train.epochs,
-            "n_locations": cfg.model.n_locations,
-            "content_size": cfg.model.content_size,
-            "address_size": cfg.model.address_size,
-            "controller_input_size": controller_input_size,
-            "controller_output_size": controller_output_size
-        })
-
     # training
     # torch.autograd.set_detect_anomaly(True)
     for epoch in range(cfg.train.epochs):
         logging.info(f"Epoch {epoch}")
 
-        train_loss, train_accuracy = training_step(device, dntm, loss_fn, opt,
-                                                   train_data_loader, epoch, cfg.train.batch_size)
-        valid_loss, valid_accuracy = valid_step(device, dntm, loss_fn, valid_data_loader)
+        train_loss, train_accuracy = training_step(device, model, loss_fn, opt,
+                                                   train_dataloader, epoch, cfg.train.batch_size)
+        valid_loss, valid_accuracy = valid_step(device, model, loss_fn, valid_dataloader)
 
         wandb.log({'loss_training_set': train_loss,
                    'loss_validation_set': valid_loss})
         wandb.log({'acc_training_set': train_accuracy,
                    'acc_validation_set': valid_accuracy})
-        log_weights_gradient(dntm, wandb)
+        log_weights_gradient(model)
 
-        early_stopping(valid_loss, dntm)
+        early_stopping(valid_loss, model)
         if early_stopping.early_stop:
             logging.info("Early stopping")
             break
 
-    # testing
-    del train_data_loader
-    test_data_loader = DataLoader(test, batch_size=cfg.train.batch_size)
 
-    logging.info("Starting testing phase")
-    test_step(device, dntm, test_data_loader)
-
-
-def valid_step(device, dntm, loss_fn, valid_data_loader):
+def valid_step(device, model, loss_fn, valid_data_loader):
     valid_accuracy = Accuracy().to(device)
     valid_epoch_loss = 0
-    dntm.eval()
+    model.eval()
     for batch_i, (mnist_images, targets) in enumerate(valid_data_loader):
-        dntm.memory.reset_memory_content()
-        dntm.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
-        dntm.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
+        model.prepare_for_batch(mnist_images, device)
 
         mnist_images, targets = mnist_images.to(device), targets.to(device)
 
         for pixel_i, pixels in enumerate(mnist_images.T):
-            logging.debug(f"Pixel {pixel_i}")
-            __, output = dntm(pixels.view(1, -1))
+            __, output = model(pixels.view(1, -1))
 
         loss_value = loss_fn(output.T, targets)
         valid_epoch_loss += loss_value.item() * mnist_images.size(0)
@@ -156,43 +97,22 @@ def training_step(device, model, loss_fn, opt, train_data_loader, epoch, batch_s
             mnist_batch_img = wandb.Image(make_grid(mnist_images.reshape(batch_size, 1, 28, -1)))
             wandb.log({f"Training data batch {batch_i}, epoch {epoch}": mnist_batch_img})
 
-        logging.debug(f"Resetting the memory")
-        model.memory.reset_memory_content()
-        model.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
-        model.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
-        model.controller_hidden_state = model.controller_hidden_state.detach()
+        model.prepare_for_batch(mnist_images, device)
 
         # if (epoch == 0) and (batch_i == 0):
         #     mocked_input = torch.ones(size=(1, mnist_images.shape[0]), device="cuda")
         #     hidden_state, output = model(mocked_input)
         #     writer.add_graph(model, mocked_input)
 
-        logging.debug(f"Moving image to GPU")
         mnist_images, targets = mnist_images.to(device), targets.to(device)
 
-        logging.debug(f"Looping through image pixels")
-        for pixel_i, pixels in enumerate(mnist_images.T):
-            logging.debug(f"Pixel {pixel_i}")
-            __, output = model(pixels.view(1, -1))
+        _, output = model(mnist_images.reshape(784, -1, 1))
+        log_preds_and_targets(batch_i, output, targets)
 
-        if batch_i == 0:
-            columns = ["Predictions", "Targets"]
-            data = zip([str(p.item()) for p in output.argmax(axis=0)],
-                       [str(t.item()) for t in targets])
-            data = [list(row) for row in data]
-            table = wandb.Table(data=data, columns=columns)
-            wandb.log({"First batch preds vs targets": table})
-
-        logging.debug(f"Computing loss value")
-        logging.debug(f"{targets=}")
         loss_value = loss_fn(output.T, targets)
-        # writer.add_scalar("per-batch_loss/train", loss_value, batch_i)
         epoch_loss += loss_value.item() * mnist_images.size(0)
 
-        logging.debug(f"Computing gradients")
         loss_value.backward()
-
-        logging.debug(f"Running optimization step")
         opt.step()
 
         batch_accuracy = train_accuracy(output.argmax(axis=0), targets)
@@ -201,38 +121,6 @@ def training_step(device, model, loss_fn, opt, train_data_loader, epoch, batch_s
     epoch_loss /= len(train_data_loader.sampler)
     train_accuracy.reset()
     return epoch_loss, accuracy_over_batches
-
-
-def test_step(device, dntm, test_data_loader):
-    test_accuracy = Accuracy().to(device)
-
-    dntm.eval()
-    for batch_i, (mnist_images, targets) in enumerate(test_data_loader):
-        logging.info(f"MNIST batch {batch_i}")
-
-        dntm.memory.reset_memory_content()
-        dntm.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
-        dntm.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
-
-        logging.debug(f"Moving image to GPU")
-        mnist_images, targets = mnist_images.to(device), targets.to(device)
-
-        logging.debug(f"Looping through image pixels")
-        for pixel_i, pixels in enumerate(mnist_images.T):
-            logging.debug(f"Pixel {pixel_i}")
-            __, output = dntm(pixels.view(1, -1))
-
-        batch_accuracy = test_accuracy(output.argmax(axis=0), targets)
-    test_accuracy = test_accuracy.compute()
-    wandb.log({"test_accuracy": test_accuracy.item()})
-
-
-def log_weights_gradient(dntm, wandb):
-    for param_name, param in dntm.named_parameters():
-        if param.grad is not None:
-            wandb.log({f"{param_name}_gradient": wandb.Histogram(param.grad.cpu())})
-        else:
-            logging.warning(f"{param_name} gradient is None!")
 
 
 if __name__ == "__main__":
