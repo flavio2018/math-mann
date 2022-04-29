@@ -75,11 +75,12 @@ def train_and_test_dntm_smnist(cfg):
             "learning_rate": cfg.train.lr,
             "batch_size": cfg.train.batch_size,
             "epochs": cfg.train.epochs,
+            "patience": cfg.train.patience,
             "n_locations": cfg.model.n_locations,
             "content_size": cfg.model.content_size,
             "address_size": cfg.model.address_size,
-            "controller_input_size": controller_input_size,
-            "controller_output_size": controller_output_size
+            "controller_input_size": cfg.model.controller_input_size,
+            "controller_output_size": cfg.model.controller_output_size
         })
 
     # training
