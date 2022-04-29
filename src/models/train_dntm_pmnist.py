@@ -106,7 +106,7 @@ def training_step(device, model, loss_fn, opt, train_data_loader, epoch, batch_s
 
         mnist_images, targets = mnist_images.to(device), targets.to(device)
 
-        _, output = model(mnist_images.T)
+        _, output = model(mnist_images.reshape(784, -1, 1))
         log_preds_and_targets(batch_i, output, targets)
 
         loss_value = loss_fn(output.T, targets)

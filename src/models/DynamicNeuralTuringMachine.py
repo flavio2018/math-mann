@@ -27,7 +27,13 @@ class DynamicNeuralTuringMachine(nn.Module):
 
         self._init_parameters(init_function=nn.init.xavier_uniform_)
 
-    def forward(self, batch):
+    def forward(self, input):
+        if len(input.shape) == 2:
+            return self.step_on_batch_element(input)
+        elif len(input.shape) == 3:
+            return self.step_on_batch(input)
+
+    def step_on_batch(self, batch):
         logging.debug(f"Looping through image pixels")
         for i_element, batch_row in enumerate(batch):
             logging.debug(f"Pixel {i_element}")
