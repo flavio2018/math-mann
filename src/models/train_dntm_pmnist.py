@@ -112,7 +112,6 @@ def valid_step(device, model, loss_fn, valid_data_loader):
         mnist_images, targets = mnist_images.to(device), targets.to(device)
 
         for pixel_i, pixels in enumerate(mnist_images.T):
-            logging.debug(f"Pixel {pixel_i}")
             __, output = model(pixels.view(1, -1))
 
         loss_value = loss_fn(output.T, targets)
@@ -139,7 +138,6 @@ def training_step(device, model, loss_fn, opt, train_data_loader, epoch, batch_s
             mnist_batch_img = wandb.Image(make_grid(mnist_images.reshape(batch_size, 1, 28, -1)))
             wandb.log({f"Training data batch {batch_i}, epoch {epoch}": mnist_batch_img})
 
-        logging.debug(f"Resetting the memory")
         model.prepare_for_batch(mnist_images, device)
 
         # if (epoch == 0) and (batch_i == 0):
@@ -147,20 +145,15 @@ def training_step(device, model, loss_fn, opt, train_data_loader, epoch, batch_s
         #     hidden_state, output = model(mocked_input)
         #     writer.add_graph(model, mocked_input)
 
-        logging.debug(f"Moving image to GPU")
         mnist_images, targets = mnist_images.to(device), targets.to(device)
 
         _, output = model(mnist_images.T)
         log_preds_and_targets(batch_i, output, targets)
 
-        logging.debug(f"Computing loss value")
         loss_value = loss_fn(output.T, targets)
         epoch_loss += loss_value.item() * mnist_images.size(0)
 
-        logging.debug(f"Computing gradients")
         loss_value.backward()
-
-        logging.debug(f"Running optimization step")
         opt.step()
 
         batch_accuracy = train_accuracy(output.argmax(axis=0), targets)
@@ -180,12 +173,9 @@ def test_step(device, model, test_data_loader):
 
         model.prepare_for_batch(mnist_images, device)
 
-        logging.debug(f"Moving image to GPU")
         mnist_images, targets = mnist_images.to(device), targets.to(device)
 
-        logging.debug(f"Looping through image pixels")
         for pixel_i, pixels in enumerate(mnist_images.T):
-            logging.debug(f"Pixel {pixel_i}")
             __, output = model(pixels.view(1, -1))
 
         batch_accuracy = test_accuracy(output.argmax(axis=0), targets)
