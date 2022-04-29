@@ -1,5 +1,4 @@
 import logging
-import wandb
 
 
 def log_weights_gradient(model, wandb):

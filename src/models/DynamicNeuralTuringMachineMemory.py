@@ -112,13 +112,13 @@ class DynamicNeuralTuringMachineMemory(nn.Module):
             self.exp_mov_avg_similarity = 0.1 * self.exp_mov_avg_similarity + 0.9 * similarity_vector
         return lru_similarity_vector
 
-    def reset_memory_content(self):
+    def _reset_memory_content(self):
         """This method exists to implement the memory reset at the beginning of each episode."""
         self.memory_contents.fill_(0)
         self.memory_contents.detach_()
         # self.memory_contents = torch.zeros_like(self.memory_contents)  # alternative
 
-    def reshape_and_reset_exp_mov_avg_sim(self, batch_size, device):
+    def _reshape_and_reset_exp_mov_avg_sim(self, batch_size, device):
         with torch.no_grad():
             n_locations = self.memory_addresses.shape[0]
         self.register_buffer("exp_mov_avg_similarity", torch.zeros(size=(n_locations, batch_size)))

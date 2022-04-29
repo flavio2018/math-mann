@@ -67,7 +67,13 @@ class DynamicNeuralTuringMachine(nn.Module):
                 torch.nn.init.constant_(parameter, 0.1)
                 logging.debug(f"{name}: {parameter}")
 
-    def reshape_and_reset_hidden_states(self, batch_size, device):
+    def prepare_for_batch(self, batch, device):
+        self.memory._reset_memory_content()
+        self._reshape_and_reset_hidden_states(batch_size=batch.shape[0], device=device)
+        self.memory._reshape_and_reset_exp_mov_avg_sim(batch_size=batch.shape[0], device=device)
+        self.controller_hidden_state = self.controller_hidden_state.detach()
+
+    def _reshape_and_reset_hidden_states(self, batch_size, device):
         with torch.no_grad():
             controller_hidden_state_size = self.W_output.shape[1]
         self.register_buffer("controller_hidden_state", torch.zeros(size=(controller_hidden_state_size, batch_size)))

@@ -9,6 +9,7 @@ import wandb
 from src.utils import seed_worker, configure_reproducibility
 from src.data.perm_seq_mnist import get_dataset
 from src.models.train_dntm_utils import build_model
+from src.wandb_utils import log_weights_gradient
 
 import numpy as np
 from torch.utils.data import DataLoader
@@ -107,9 +108,7 @@ def valid_step(device, model, loss_fn, valid_data_loader):
     valid_epoch_loss = 0
     model.eval()
     for batch_i, (mnist_images, targets) in enumerate(valid_data_loader):
-        model.memory.reset_memory_content()
-        model.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
-        model.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
+        model.prepare_for_batch(mnist_images, device)
 
         mnist_images, targets = mnist_images.to(device), targets.to(device)
 
@@ -142,10 +141,7 @@ def training_step(device, model, loss_fn, opt, train_data_loader, epoch, batch_s
             wandb.log({f"Training data batch {batch_i}, epoch {epoch}": mnist_batch_img})
 
         logging.debug(f"Resetting the memory")
-        model.memory.reset_memory_content()
-        model.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
-        model.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
-        model.controller_hidden_state = model.controller_hidden_state.detach()
+        model.prepare_for_batch(mnist_images, device)
 
         # if (epoch == 0) and (batch_i == 0):
         #     mocked_input = torch.ones(size=(1, mnist_images.shape[0]), device="cuda")
@@ -195,10 +191,7 @@ def test_step(device, model, test_data_loader):
     for batch_i, (mnist_images, targets) in enumerate(test_data_loader):
         logging.info(f"MNIST batch {batch_i}")
 
-        model.memory.reset_memory_content()
-        model.reshape_and_reset_hidden_states(batch_size=mnist_images.shape[0], device=device)
-        model.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=mnist_images.shape[0], device=device)
-        model.controller_hidden_state = model.controller_hidden_state.detach()
+        model.prepare_for_batch(mnist_images, device)
 
         logging.debug(f"Moving image to GPU")
         mnist_images, targets = mnist_images.to(device), targets.to(device)

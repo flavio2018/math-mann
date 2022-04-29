@@ -41,9 +41,9 @@ def build_model(model_conf, device):
         logging.info(f"Reloading from checkpoint: {model_conf.ckpt}")
         state_dict = torch.load(model_conf.ckpt)
         batch_size_ckpt = state_dict['controller_hidden_state'].shape[1]
-        dntm.memory.reset_memory_content()
-        dntm.reshape_and_reset_hidden_states(batch_size=batch_size_ckpt, device=device)
-        dntm.memory.reshape_and_reset_exp_mov_avg_sim(batch_size=batch_size_ckpt, device=device)
+        dntm.memory._reset_memory_content()
+        dntm._reshape_and_reset_hidden_states(batch_size=batch_size_ckpt, device=device)
+        dntm.memory._reshape_and_reset_exp_mov_avg_sim(batch_size=batch_size_ckpt, device=device)
         dntm.memory.reshape_and_reset_read_write_weights(shape=state_dict['memory.read_weights'].shape)
         dntm.load_state_dict(state_dict)
     return dntm
