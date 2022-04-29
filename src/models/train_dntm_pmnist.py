@@ -3,6 +3,7 @@ import torch.nn
 import logging
 import os
 import hydra
+import omegaconf
 import wandb
 
 from src.utils import seed_worker, configure_reproducibility
@@ -25,6 +26,9 @@ def click_wrapper(cfg):
 def train_and_test_dntm_smnist(cfg):
     device = torch.device("cuda", 0)
     rng = configure_reproducibility(cfg.run.seed)
+
+    wandb.config = omegaconf.OmegaConf.to_container(
+        cfg, resolve=True, throw_on_missing=True)
 
     wandb.init(project="dntm_mnist", entity="flapetr")
     wandb.run.name = cfg.run.codename
@@ -71,17 +75,6 @@ def train_and_test_dntm_smnist(cfg):
                                    trace_func=logging.info,
                                    patience=cfg.train.patience)
 
-    wandb.config.update({
-            "learning_rate": cfg.train.lr,
-            "batch_size": cfg.train.batch_size,
-            "epochs": cfg.train.epochs,
-            "patience": cfg.train.patience,
-            "n_locations": cfg.model.n_locations,
-            "content_size": cfg.model.content_size,
-            "address_size": cfg.model.address_size,
-            "controller_input_size": cfg.model.controller_input_size,
-            "controller_output_size": cfg.model.controller_output_size
-        })
 
     # training
     # torch.autograd.set_detect_anomaly(True)
