@@ -27,10 +27,7 @@ class DynamicNeuralTuringMachine(nn.Module):
 
         self._init_parameters(init_function=nn.init.xavier_uniform_)
 
-    def forward(self, x, num_addressing_steps=1):
-
-        if num_addressing_steps < 1:
-            raise ValueError(f"num_addressing_steps should be at least 1, received: {num_addressing_steps}")
+    def forward(self, x):
 
         with torch.no_grad():
             logging.debug(f"{self.controller_hidden_state.isnan().any()=}")
@@ -38,13 +35,10 @@ class DynamicNeuralTuringMachine(nn.Module):
             logging.debug(f"{self.controller_hidden_state.max()=}")
             logging.debug(f"{self.controller_hidden_state.min()=}")
 
-        for __ in range(num_addressing_steps):
-            memory_reading = self.memory.read(self.controller_hidden_state)
-            self.memory.update(self.controller_hidden_state, x)
-            self.controller_hidden_state = self.controller(x, self.controller_hidden_state,
-                                                           memory_reading)
-
-            output = F.log_softmax(self.W_output @ self.controller_hidden_state + self.b_output, dim=0)
+        memory_reading = self.memory.read(self.controller_hidden_state)
+        self.memory.update(self.controller_hidden_state, x)
+        self.controller_hidden_state = self.controller(x, self.controller_hidden_state, memory_reading)
+        output = F.log_softmax(self.W_output @ self.controller_hidden_state + self.b_output, dim=0)
         return self.controller_hidden_state, output
 
     def _init_parameters(self, init_function):
