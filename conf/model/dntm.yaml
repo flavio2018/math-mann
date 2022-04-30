@@ -1,6 +1,6 @@
 name: dntm
-n_locations: 750
-content_size: 32
+n_locations: 1000
+content_size: 8
 address_size: 8
 controller_input_size: 1
 controller_output_size: 10
