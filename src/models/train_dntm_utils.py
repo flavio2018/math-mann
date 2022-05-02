@@ -66,9 +66,13 @@ class CustomLSTM(torch.nn.Module):
                                   proj_size=proj_size).to(device)
 
     def forward(self, batch):
+        # print(batch.shape)  # (784, bs, 1)
         full_output, h_n_c_n = self.lstm(batch)
-        last_output = full_output[-1, :, :].view((10, -1))  # select only the output for the last timestep and reshape to 2D
+        # print(full_output.shape)
+        last_output = full_output[-1, :, :].T  # select only the output for the last timestep and reshape to 2D
         log_soft_output = torch.nn.functional.log_softmax(last_output, dim=0)
+        # print(log_soft_output.shape)
+        # print(torch.exp(log_soft_output).sum(axis=0))
         return h_n_c_n, log_soft_output
 
     def prepare_for_batch(self, batch, device):
