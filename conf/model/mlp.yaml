@@ -1,0 +1,4 @@
+name: mlp
+input_size: 784
+hidden_sizes: "500,500"
+output_size: 10
