@@ -45,8 +45,7 @@ def train_and_test_dntm_smnist(cfg):
     for epoch in range(cfg.train.epochs):
         logging.info(f"Epoch {epoch}")
 
-        train_loss, train_accuracy = training_step(device, model, loss_fn, opt,
-                                                   train_dataloader, epoch, cfg.train.batch_size)
+        train_loss, train_accuracy = training_step(device, model, loss_fn, opt, train_dataloader, epoch)
         valid_loss, valid_accuracy = valid_step(device, model, loss_fn, valid_dataloader)
 
         wandb.log({'loss_training_set': train_loss,
@@ -82,13 +81,13 @@ def valid_step(device, model, loss_fn, valid_data_loader):
     return valid_epoch_loss, valid_accuracy_at_epoch
 
 
-def training_step(device, model, loss_fn, opt, train_data_loader, epoch, batch_size):
+def training_step(device, model, loss_fn, opt, train_data_loader, epoch):
     train_accuracy = Accuracy().to(device)
 
     epoch_loss = 0
     model.train()
     for batch_i, (mnist_images, targets) in enumerate(train_data_loader):
-
+        batch_size = len(mnist_images)
         logging.info(f"MNIST batch {batch_i}")
         model.zero_grad()
 
@@ -105,7 +104,7 @@ def training_step(device, model, loss_fn, opt, train_data_loader, epoch, batch_s
 
         mnist_images, targets = mnist_images.to(device), targets.to(device)
 
-        _, output = model(mnist_images.reshape(784, -1, 1))
+        _, output = model(mnist_images.T.unsqueeze(dim=-1))
         log_preds_and_targets(batch_i, output, targets)
 
         loss_value = loss_fn(output.T, targets)
