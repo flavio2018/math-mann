@@ -26,8 +26,10 @@ def build_model(model_conf, device):
         return build_dntm(model_conf, device)
     elif model_conf.name == 'mlp':
         return build_mlp(model_conf, device)
-    else:
+    elif model_conf.name == 'rnn':
         return build_rnn(model_conf, device)
+    else:
+        return build_lstm(model_conf, device)
 
 
 def build_dntm(model_conf, device):
@@ -58,17 +60,58 @@ def build_dntm(model_conf, device):
     return dntm
 
 
+def get_digit_string_repr(digit):
+    repr = ''
+    digit = (digit.view(28, 28) != 0).to(torch.int32)
+    for row in digit:
+        for item in row:
+            str_item = item.item()
+            repr += ' ' + ' ' if str_item == 0 else '0'
+        repr += '\n'
+    return repr
+
+
+class CustomRNN(torch.nn.Module):
+    def __init__(self, input_size, hidden_size, proj_size):
+        super().__init__()
+        self.rnn = torch.nn.RNN(input_size=input_size,
+                                hidden_size=hidden_size)
+        self.output_mlp = torch.nn.Linear(in_features=hidden_size, out_features=proj_size)
+
+    def forward(self, batch):
+        full_output, h_n = self.rnn(batch)
+        last_output = full_output[-1, :, :]  # select only the output for the last timestep and reshape to 2D
+        projected_output = self.output_mlp(last_output).T
+        log_soft_output = torch.nn.functional.log_softmax(projected_output, dim=0)
+
+        # print(get_digit_string_repr(batch[:, 0, :]))
+        # print(f"{full_output.shape=}")
+        # print(f"{last_output.shape=}")
+        # print(f"{projected_output.shape=}")
+        # print(f"{log_soft_output.shape=}")
+
+        return h_n, log_soft_output
+
+    def prepare_for_batch(self, batch, device):
+        return
+
+
+def build_rnn(model_conf, device):
+    return CustomRNN(input_size=model_conf.input_size,
+                     hidden_size=model_conf.hidden_size,
+                     proj_size=model_conf.output_size).to(device)
+
+
 class CustomLSTM(torch.nn.Module):
-    def __init__(self, input_size, hidden_size, proj_size, device):
+    def __init__(self, input_size, hidden_size, proj_size):
         super().__init__()
         self.lstm = torch.nn.LSTM(input_size=input_size,
                                   hidden_size=hidden_size,
-                                  proj_size=proj_size).to(device)
+                                  proj_size=proj_size)
 
     def forward(self, batch):
-        # print(batch.shape)  # (784, bs, 1)
         full_output, h_n_c_n = self.lstm(batch)
-        last_output = full_output[-1, :, :].squeeze().T  # select only the output for the last timestep and reshape to 2D
+        last_output = full_output[-1, :, :].T  # select only the output for the last timestep and reshape to 2D
         log_soft_output = torch.nn.functional.log_softmax(last_output, dim=0)
         # print(log_soft_output.shape)
         # print(torch.exp(log_soft_output).sum(axis=0))
@@ -78,15 +121,14 @@ class CustomLSTM(torch.nn.Module):
         return
 
 
-def build_rnn(model_conf, device):
+def build_lstm(model_conf, device):
     return CustomLSTM(input_size=model_conf.input_size,
                       hidden_size=model_conf.hidden_size,
-                      proj_size=model_conf.output_size,
-                      device=device)
+                      proj_size=model_conf.output_size).to(device)
 
 
 class CustomMLP(torch.nn.Module):
-    def __init__(self, input_size: int, hidden_sizes: str, output_size: int, device):
+    def __init__(self, input_size: int, hidden_sizes: str, output_size: int):
         """hidden_sizes should be a list of comma separated integers."""
         hidden_sizes = [int(size) for size in hidden_sizes.split(",")]
         super().__init__()
@@ -94,9 +136,8 @@ class CustomMLP(torch.nn.Module):
         self.linear_layers = []
         for i in range(len(hidden_sizes) - 1):
             self.linear_layers += [torch.nn.Linear(in_features=hidden_sizes[i],
-                                                   out_features=hidden_sizes[i+1],
-                                                   device=device)]
-        self.output_layer = torch.nn.Linear(in_features=hidden_sizes[-1], out_features=output_size, device=device)
+                                                   out_features=hidden_sizes[i+1])]
+        self.output_layer = torch.nn.Linear(in_features=hidden_sizes[-1], out_features=output_size)
 
     def forward(self, x):
         x = x.view(-1, 784)
@@ -115,5 +156,4 @@ class CustomMLP(torch.nn.Module):
 def build_mlp(model_conf, device):
     return CustomMLP(input_size=model_conf.input_size,
                      hidden_sizes=model_conf.hidden_sizes,
-                     output_size=model_conf.output_size,
-                     device=device)
+                     output_size=model_conf.output_size).to(device)
