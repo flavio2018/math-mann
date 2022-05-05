@@ -1,4 +1,5 @@
 name: rnn
-input_size: 1
-hidden_size: 2048
-output_size: 10
+input_size: 35
+hidden_size: 100
+output_size: 35
+batch_first: true
