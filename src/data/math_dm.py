@@ -1,12 +1,20 @@
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+import hydra
+import os
+
+from src.data.BucketBatchSampler import BucketBatchSampler
+from torch.utils.data import DataLoader
+from torchtext.vocab import build_vocab_from_iterator
+from torchtext.transforms import VocabTransform
 
 
 class MathematicsDataset(Dataset):
     """Dataset of mathematical problems first defined by Google Deepmind."""
     def __init__(self, problem_name, transform=None):
-        self.path = f"../data/external/mathematics_dataset-v1.0/train-easy/{problem_name}.txt"
+        self.path = os.path.join(hydra.utils.get_original_cwd(),
+                                 f"../data/external/mathematics_dataset-v1.0/train-easy/{problem_name}.txt")
         with open(self.path) as f:
             dataset = f.readlines()
         self.samples = dataset[::2]
@@ -48,3 +56,21 @@ def collate_fn(samples: list):
     X = torch.nn.utils.rnn.pad_sequence([torch.Tensor(x) for x in X], batch_first=True)
     Y = torch.nn.utils.rnn.pad_sequence([torch.Tensor(y) for y in Y], batch_first=True)
     return X, Y
+
+
+def get_dataloader(cfg):
+    problem_name = cfg.data.problem_name
+    print("Problem:", problem_name)
+
+    print("Building vocabulary...")
+    vocabulary = build_vocab_from_iterator(
+        yield_chars(os.path.join(hydra.utils.get_original_cwd(),
+                                 f"../data/external/mathematics_dataset-v1.0/train-easy/{problem_name}.txt")))
+    print(f"Built vocabulary with {len(vocabulary)} terms")
+    ds = MathematicsDataset(problem_name, transform=VocabTransform(vocabulary))
+
+    X, y = ds.numpy()
+    bucket_batch_sampler = BucketBatchSampler(X, 16)  # <-- does not store X
+
+    return DataLoader(ds, batch_sampler=bucket_batch_sampler, shuffle=False,
+                      num_workers=2, drop_last=False, collate_fn=collate_fn), vocabulary
