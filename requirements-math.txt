@@ -1,0 +1,12 @@
+hydra-core
+torchtext==0.12
+torchmetrics
+wandb
+
+# local package
+-e .
+
+# python-dotenv>=0.5.1
+
+# setuptools==47.1.0
+
