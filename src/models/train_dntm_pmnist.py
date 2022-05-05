@@ -74,7 +74,7 @@ def valid_step(device, model, loss_fn, valid_data_loader):
         loss_value = loss_fn(output.T, targets)
         valid_epoch_loss += loss_value.item() * mnist_images.size(0)
 
-        batch_accuracy = valid_accuracy(output.argmax(axis=0), targets)
+        batch_accuracy = valid_accuracy(output.T, targets)
     valid_accuracy_at_epoch = valid_accuracy.compute()
     valid_epoch_loss /= len(valid_data_loader.sampler)
     valid_accuracy.reset()
@@ -113,7 +113,7 @@ def training_step(device, model, loss_fn, opt, train_data_loader, epoch):
         loss_value.backward()
         opt.step()
 
-        batch_accuracy = train_accuracy(output.argmax(axis=0), targets)
+        batch_accuracy = train_accuracy(output.T, targets)
 
     accuracy_over_batches = train_accuracy.compute()
     epoch_loss /= len(train_data_loader.sampler)
