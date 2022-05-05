@@ -37,8 +37,6 @@ def train_and_test_dntm_maths(cfg):
 
         # valid_step(data_loader)
         wandb.log({'loss_training_set': train_loss})
-        print(
-            f"Epoch {epoch} --- train loss: {train_loss} - valid loss: {valid_loss} - train acc: {train_accuracy} - valid acc: {valid_accuracy}")
         wandb.log({'acc_training_set': train_accuracy})
         log_weights_gradient(model)
 
