@@ -9,6 +9,7 @@ from torchmetrics.classification import Accuracy
 from src.utils import configure_reproducibility
 from src.data.math_dm import get_dataloader
 from src.models.train_dntm_utils import build_model
+from src.wandb_utils import log_weights_gradient
 
 
 @hydra.main(config_path="../../conf", config_name="maths")
@@ -21,7 +22,7 @@ def train_and_test_dntm_maths(cfg):
     rng = configure_reproducibility(cfg.run.seed)
 
     wandb.config = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
-    wandb.init(project="dntm_math", entity="flapetr", mode="disabled")
+    wandb.init(project="dntm_math", entity="flapetr")
     wandb.run.name = cfg.run.codename
 
     data_loader, vocab = get_dataloader(cfg)
@@ -35,6 +36,11 @@ def train_and_test_dntm_maths(cfg):
         print(f"Epoch {epoch} --- train loss: {train_loss} - train acc: {train_accuracy}")
 
         # valid_step(data_loader)
+        wandb.log({'loss_training_set': train_loss})
+        print(
+            f"Epoch {epoch} --- train loss: {train_loss} - valid loss: {valid_loss} - train acc: {train_accuracy} - valid acc: {valid_accuracy}")
+        wandb.log({'acc_training_set': train_accuracy})
+        log_weights_gradient(model)
 
 
 def train_step(data_loader, vocab, model, criterion, optimizer, device):
