@@ -55,7 +55,7 @@ def configure_reproducibility(seed):
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
-    torch.use_deterministic_algorithms(mode=True, warn_only=True)
+    torch.use_deterministic_algorithms(mode=True)  # , warn_only=True)
 
     return rng
 
