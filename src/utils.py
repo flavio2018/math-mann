@@ -3,8 +3,6 @@ import logging
 import numpy as np
 import torch
 import random
-from torch.utils.tensorboard import SummaryWriter
-import mlflow
 import inspect
 
 
@@ -68,10 +66,10 @@ def config_run(loglevel, run_name, seed):
 
     configure_logging(loglevel, run_name)
 
-    mlflow.set_tracking_uri("file:../logs/mlruns/")
-    mlflow.set_experiment(experiment_name="dntm_pmnist")
+    # mlflow.set_tracking_uri("file:../logs/mlruns/")
+    # mlflow.set_experiment(experiment_name="dntm_pmnist")
 
-    writer = SummaryWriter(log_dir=f"../logs/tensorboard/{run_name}")
+    writer = None  # SummaryWriter(log_dir=f"../logs/tensorboard/{run_name}")
 
     device = torch.device("cuda", 0)
     if loglevel == 'DEBUG':
