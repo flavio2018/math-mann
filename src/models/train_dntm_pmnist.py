@@ -50,6 +50,7 @@ def train_and_test_dntm_smnist(cfg):
 
         wandb.log({'loss_training_set': train_loss,
                    'loss_validation_set': valid_loss})
+        print(f"Epoch {epoch} --- train loss: {train_loss} - valid loss: {valid_loss} - train acc: {train_accuracy} - valid acc: {valid_accuracy}")
         wandb.log({'acc_training_set': train_accuracy,
                    'acc_validation_set': valid_accuracy})
         log_weights_gradient(model)
@@ -111,6 +112,7 @@ def training_step(device, model, loss_fn, opt, train_data_loader, epoch):
         epoch_loss += loss_value.item() * mnist_images.size(0)
 
         loss_value.backward()
+        torch.nn.utils.clip_grad_value_(model.parameters(), 0.1)
         opt.step()
 
         batch_accuracy = train_accuracy(output.T, targets)
