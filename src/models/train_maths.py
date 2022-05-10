@@ -2,6 +2,7 @@
 import hydra
 import wandb
 import omegaconf
+import logging
 
 import torch
 from torchmetrics.classification import Accuracy
@@ -21,9 +22,14 @@ def train_and_test_dntm_maths(cfg):
     device = torch.device("cuda", 0)
     rng = configure_reproducibility(cfg.run.seed)
 
-    wandb.config = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
-    wandb.init(project="dntm_math", entity="flapetr")
+    cfg_dict = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
+    wandb_run = wandb.init(project="dntm_math", entity="flapetr")
     wandb.run.name = cfg.run.codename
+    for subconfig_name, subconfig_values in cfg_dict.items():
+        if isinstance(subconfig_values, dict):
+            wandb.config.update(subconfig_values)
+        else:
+            logging.warning(f"{subconfig_name} is not being logged.")
 
     data_loader, vocab = get_dataloader(cfg)
     model = build_model(cfg.model, device)
