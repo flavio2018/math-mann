@@ -23,13 +23,15 @@ def train_and_test_dntm_maths(cfg):
     rng = configure_reproducibility(cfg.run.seed)
 
     cfg_dict = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
-    wandb_run = wandb.init(project="dntm_math", entity="flapetr")
+    wandb.init(project="dntm_math", entity="flapetr")
     wandb.run.name = cfg.run.codename
     for subconfig_name, subconfig_values in cfg_dict.items():
         if isinstance(subconfig_values, dict):
             wandb.config.update(subconfig_values)
         else:
             logging.warning(f"{subconfig_name} is not being logged.")
+
+    text_table = wandb.Table(columns=["prediction", "target"])
 
     data_loader, vocab = get_dataloader(cfg)
     model = build_model(cfg.model, device)
@@ -38,16 +40,17 @@ def train_and_test_dntm_maths(cfg):
     optimizer = torch.optim.Adam(model.parameters(), lr=6e-4, betas=(0.99, 0.995), eps=1e-9)
 
     for epoch in range(cfg.train.epochs):
-        train_loss, train_accuracy = train_step(data_loader, vocab, model, criterion, optimizer, device)
+        train_loss, train_accuracy = train_step(data_loader, vocab, model, criterion, optimizer, device, text_table)
         print(f"Epoch {epoch} --- train loss: {train_loss} - train acc: {train_accuracy}")
 
         # valid_step(data_loader)
         wandb.log({'loss_training_set': train_loss})
         wandb.log({'acc_training_set': train_accuracy})
         log_weights_gradient(model)
+    wandb.log({'predictions': text_table})
 
 
-def train_step(data_loader, vocab, model, criterion, optimizer, device):
+def train_step(data_loader, vocab, model, criterion, optimizer, device, text_table):
     train_accuracy = Accuracy().to(device)
     epoch_loss = 0
     num_batches = 0
@@ -67,6 +70,7 @@ def train_step(data_loader, vocab, model, criterion, optimizer, device):
         # print(f"{one_hot_targets.shape=}")
 
         current_output = output
+        if num_batches == 1: current_first_output_str = vocab.lookup_token(current_output.T[0].argmax())
         batch_loss = criterion(current_output.T, targets[:, 0].type(torch.int64))
         # print("generating output")
         # print(f"{current_output.T.shape=}")
@@ -78,13 +82,17 @@ def train_step(data_loader, vocab, model, criterion, optimizer, device):
             hn_cn, current_output = model(new_input)
             batch_loss += criterion(current_output.T, target_seq_el)
             train_accuracy.update(current_output.T, target_seq_el)
+            if num_batches == 1: current_first_output_str += vocab.lookup_token(current_output.T[0].argmax())
 
-            # print(f"{target_seq_el=}")
-            # print(f"{new_input.shape=}")
-            # print(f"{current_output.T.shape=}")
-            # print(f"{batch_loss=}")
-            # print(f"{current_output.T=}")
-            # print(f"{new_input=}")
+        if num_batches == 1:
+            first_current_target_str = ''.join([vocab.lookup_token(t) for t in targets[0]])
+            text_table.add_data(current_first_output_str, first_current_target_str)
+        # print(f"{target_seq_el=}")
+        # print(f"{new_input.shape=}")
+        # print(f"{current_output.T.shape=}")
+        # print(f"{batch_loss=}")
+        # print(f"{current_output.T=}")
+        # print(f"{new_input=}")
 
         # print()
         epoch_loss += batch_loss.item() * batch_size
