@@ -45,7 +45,7 @@ def train_and_test_dntm_smnist(cfg):
     for epoch in range(cfg.train.epochs):
         logging.info(f"Epoch {epoch}")
 
-        train_loss, train_accuracy = training_step(device, model, loss_fn, opt, train_dataloader, epoch)
+        train_loss, train_accuracy = training_step(device, model, loss_fn, opt, train_dataloader, epoch, cfg)
         valid_loss, valid_accuracy = valid_step(device, model, loss_fn, valid_dataloader)
 
         wandb.log({'loss_training_set': train_loss,
@@ -82,7 +82,7 @@ def valid_step(device, model, loss_fn, valid_data_loader):
     return valid_epoch_loss, valid_accuracy_at_epoch
 
 
-def training_step(device, model, loss_fn, opt, train_data_loader, epoch):
+def training_step(device, model, loss_fn, opt, train_data_loader, epoch, cfg):
     train_accuracy = Accuracy().to(device)
 
     epoch_loss = 0
@@ -112,7 +112,7 @@ def training_step(device, model, loss_fn, opt, train_data_loader, epoch):
         epoch_loss += loss_value.item() * mnist_images.size(0)
 
         loss_value.backward()
-        torch.nn.utils.clip_grad_value_(model.parameters(), 0.1)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.train.max_grad_norm, norm_type=2.0, error_if_nonfinite=True)
         opt.step()
 
         batch_accuracy = train_accuracy(output.T, targets)
