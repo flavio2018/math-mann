@@ -1,11 +1,14 @@
 import logging
 import wandb
+import torch
 
 
 def log_weights_gradient(model):
     for param_name, param in model.named_parameters():
         if param.grad is not None:
-            wandb.log({f"{param_name}_gradient": wandb.Histogram(param.grad.cpu())})
+            wandb.log({f"hist_gradient/{param_name}": wandb.Histogram(param.grad.cpu())})
+            norm = torch.norm(param.grad.detach(), 2)
+            wandb.log({f"norm2_gradient/{param_name}": norm})
         else:
             logging.warning(f"{param_name} gradient is None!")
 
