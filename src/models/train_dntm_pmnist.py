@@ -25,9 +25,14 @@ def train_and_test_dntm_smnist(cfg):
     device = torch.device("cuda", 0)
     rng = configure_reproducibility(cfg.run.seed)
 
-    wandb.config = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
-    wandb.init(project="dntm_mnist", entity="flapetr")
+    cfg_dict = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
+    wandb.init(project="dntm_mnist", entity="flapetr")  # use mode="disabled" to disable for a single run
     wandb.run.name = cfg.run.codename
+    for subconfig_name, subconfig_values in cfg_dict.items():
+        if isinstance(subconfig_values, dict):
+            wandb.config.update(subconfig_values)
+        else:
+            logging.warning(f"{subconfig_name} is not being logged.")
 
     train_dataloader, valid_dataloader = get_dataloaders(cfg, rng)
     model = build_model(cfg.model, device)
