@@ -21,6 +21,15 @@ def read_write_consistency_regularizer(sequence_read_weights, sequence_write_wei
     return lambda_ * term.sum()
 
 
+def get_optimizer(model, cfg):
+    if cfg.train.optimizer == 'adam':
+        return torch.optim.Adam(model.parameters(), lr=cfg.train.lr)
+    elif cfg.train.optimizer == 'rmsprop':
+        return torch.optim.RMSprop(model.parameters(), lr=cfg.train.lr)
+    else:
+        return torch.optim.Adam(model.parameters(), lr=cfg.train.lr)
+
+
 def build_model(model_conf, device):
     if model_conf.name == 'dntm':
         return build_dntm(model_conf, device)

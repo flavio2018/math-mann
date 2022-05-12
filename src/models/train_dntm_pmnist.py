@@ -7,7 +7,7 @@ import omegaconf
 import wandb
 
 from src.data.perm_seq_mnist import get_dataloaders
-from src.models.train_dntm_utils import build_model
+from src.models.train_dntm_utils import build_model, get_optimizer
 from src.utils import configure_reproducibility
 from src.wandb_utils import log_weights_gradient, log_preds_and_targets
 
@@ -38,7 +38,7 @@ def train_and_test_dntm_smnist(cfg):
     model = build_model(cfg.model, device)
 
     loss_fn = torch.nn.NLLLoss()
-    opt = torch.optim.Adam(model.parameters(), lr=cfg.train.lr)
+    opt = get_optimizer(model, cfg)
     early_stopping = EarlyStopping(verbose=True,
                                    path=os.path.join(hydra.utils.get_original_cwd(),
                                                      f"../models/checkpoints/{cfg.run.codename}.pth"),
