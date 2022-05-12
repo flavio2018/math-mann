@@ -41,7 +41,7 @@ def train_and_test_dntm_maths(cfg):
     optimizer = torch.optim.Adam(model.parameters(), lr=6e-4, betas=(0.99, 0.995), eps=1e-9)
 
     for epoch in range(cfg.train.epochs):
-        train_loss, train_accuracy, cer, mer = train_step(data_loader, vocab, model, criterion, optimizer, device, text_table)
+        train_loss, train_accuracy, cer, mer = train_step(data_loader, vocab, model, criterion, optimizer, device, text_table, cfg)
         print(f"Epoch {epoch} --- train loss: {train_loss} - train acc: {train_accuracy}")
 
         # valid_step(data_loader)
@@ -53,7 +53,7 @@ def train_and_test_dntm_maths(cfg):
     wandb.log({'predictions': text_table})
 
 
-def train_step(data_loader, vocab, model, criterion, optimizer, device, text_table):
+def train_step(data_loader, vocab, model, criterion, optimizer, device, text_table, cfg):
     train_accuracy = Accuracy().to(device)
     char_error_rate = CharErrorRate().to(device)
     match_error_rate = MatchErrorRate().to(device)
@@ -115,7 +115,7 @@ def train_step(data_loader, vocab, model, criterion, optimizer, device, text_tab
         # print()
         epoch_loss += batch_loss.item() * batch_size
         batch_loss.backward()
-        torch.nn.utils.clip_grad_value_(model.parameters(), 0.1)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.train.max_grad_norm, norm_type=2.0, error_if_nonfinite=True)
         optimizer.step()
     accuracy_over_batches = train_accuracy.compute()
     cer_over_batches = char_error_rate.compute()
