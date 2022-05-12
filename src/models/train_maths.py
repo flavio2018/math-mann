@@ -68,6 +68,9 @@ def train_step(data_loader, vocab, model, criterion, optimizer, device, text_tab
         batch, targets = batch.to(device), targets.to(device)
         one_hot_batch = torch.nn.functional.one_hot(batch.type(torch.int64), len(vocab)).type(torch.float32)
         one_hot_targets = torch.nn.functional.one_hot(targets.type(torch.int64), len(vocab)).type(torch.float32)
+        
+        model.prepare_for_batch(one_hot_batch, device)
+
         hn_cn, output = model(one_hot_batch)
         # print(f"{batch.shape=}")
         # print(f"{one_hot_batch.shape=}")

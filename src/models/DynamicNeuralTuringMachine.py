@@ -34,10 +34,16 @@ class DynamicNeuralTuringMachine(nn.Module):
             return self.step_on_batch(input)
 
     def step_on_batch(self, batch):
+        """Note: the batch is assumed to conform to the batch_first convention of PyTorch, i.e. the first dimension of the batch
+        is the batch size, the second one is the sequence length and the third one is the feature size."""
         logging.debug(f"Looping through image pixels")
-        for i_element, batch_row in enumerate(batch):
-            logging.debug(f"Pixel {i_element}")
-            controller_hidden_state, output = self.step_on_batch_element(batch_row.view(1, -1))
+        batch_size, seq_len, feature_size = batch.shape
+        
+        for i_seq in range(seq_len):
+            logging.debug(f"Seq. el. {i_seq}")
+            batch_element = batch[:, i_seq, :].reshape(feature_size, batch_size)
+            logging.debug(f"{batch_element.shape=}")
+            controller_hidden_state, output = self.step_on_batch_element(batch_element)
         return controller_hidden_state, output
 
     def step_on_batch_element(self, x):
