@@ -1,4 +1,4 @@
 loglevel: INFO
 project_path: "/home/petruzze/math-mann"
-run_name: default_slurm
+codename: default_slurm
 seed: 2147483647

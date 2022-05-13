@@ -1,6 +1,7 @@
 defaults:
-        - run: local
+        - run: slurm
         - model: dntm
+        - train: mnist_dntm
         - data: mnist
         - override hydra/hydra_logging: none
         - override hydra/job_logging: custom
@@ -9,11 +10,4 @@ defaults:
 hydra:
   run:
     dir: ../hydra/${hydra.job.name}/${now:%Y-%B-%d_%H-%M-%S}
-
-train:
-        lr: 0.00001
-        batch_size: 4
-        epochs: 10
-        patience: 1000
-
 
