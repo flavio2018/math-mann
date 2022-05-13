@@ -10,7 +10,6 @@ tensorflow_datasets
 tensorflow
 toolz
 torchmetrics
-torchtext
 torchvision==0.10
 wandb
 
