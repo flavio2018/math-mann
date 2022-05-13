@@ -24,7 +24,7 @@ def train_and_test_dntm_maths(cfg):
     rng = configure_reproducibility(cfg.run.seed)
 
     cfg_dict = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
-    wandb.init(project="dntm_math", entity="flapetr")
+    wandb.init(project="dntm_math", entity="flapetr", mode=cfg.run.wandb_mode)
     wandb.run.name = cfg.run.codename
     for subconfig_name, subconfig_values in cfg_dict.items():
         if isinstance(subconfig_values, dict):
