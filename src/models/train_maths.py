@@ -32,7 +32,7 @@ def train_and_test_dntm_maths(cfg):
         else:
             logging.warning(f"{subconfig_name} is not being logged.")
 
-    text_table = wandb.Table(columns=["prediction", "target"])
+    text_table = wandb.Table(columns=["epoch", "prediction", "target"])
 
     data_loader, vocab = get_dataloader(cfg)
     model = build_model(cfg.model, device)
@@ -41,7 +41,7 @@ def train_and_test_dntm_maths(cfg):
     optimizer = torch.optim.Adam(model.parameters(), lr=6e-4, betas=(0.99, 0.995), eps=1e-9)
 
     for epoch in range(cfg.train.epochs):
-        train_loss, train_accuracy, cer, mer = train_step(data_loader, vocab, model, criterion, optimizer, device, text_table, cfg)
+        train_loss, train_accuracy, cer, mer = train_step(data_loader, vocab, model, criterion, optimizer, device, text_table, cfg, epoch)
         print(f"Epoch {epoch} --- train loss: {train_loss} - train acc: {train_accuracy}")
 
         # valid_step(data_loader)
@@ -53,7 +53,7 @@ def train_and_test_dntm_maths(cfg):
     wandb.log({'predictions': text_table})
 
 
-def train_step(data_loader, vocab, model, criterion, optimizer, device, text_table, cfg):
+def train_step(data_loader, vocab, model, criterion, optimizer, device, text_table, cfg, epoch):
     train_accuracy = Accuracy().to(device)
     char_error_rate = CharErrorRate().to(device)
     match_error_rate = MatchErrorRate().to(device)
@@ -104,7 +104,8 @@ def train_step(data_loader, vocab, model, criterion, optimizer, device, text_tab
             current_targets_str.append(''.join([vocab.lookup_token(t) for t in target]))
             
         #print(current_targets_str, current_outputs_str)
-        text_table.add_data(current_outputs_str[0], current_targets_str[0])
+        if (epoch % 3 == 0) and (num_batches % 100 == 0):
+            text_table.add_data(epoch, current_outputs_str[0], current_targets_str[0])
         char_error_rate.update(current_outputs_str, current_targets_str)
         match_error_rate.update(current_outputs_str, current_targets_str)
 
