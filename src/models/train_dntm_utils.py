@@ -64,7 +64,7 @@ def build_dntm(model_conf, device):
         dntm.memory._reset_memory_content()
         dntm._reshape_and_reset_hidden_states(batch_size=batch_size_ckpt, device=device)
         dntm.memory._reshape_and_reset_exp_mov_avg_sim(batch_size=batch_size_ckpt, device=device)
-        dntm.memory.reshape_and_reset_read_write_weights(shape=state_dict['memory.read_weights'].shape)
+        # dntm.memory.reshape_and_reset_read_write_weights(shape=state_dict['memory.read_weights'].shape)
         dntm.load_state_dict(state_dict)
     return dntm
 
@@ -163,6 +163,7 @@ class CustomMLP(torch.nn.Module):
 
     def forward(self, x):
         x = x.view(-1, 784)
+        print(get_digit_string_repr(x[0]))
         relu = torch.nn.ReLU()
 
         for layer in self.linear_layers:

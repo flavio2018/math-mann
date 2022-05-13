@@ -73,10 +73,10 @@ def train_step(data_loader, vocab, model, criterion, optimizer, device, text_tab
 
         hn_cn, output = model(one_hot_batch)
         # print(f"{batch.shape=}")
-        # print(f"{one_hot_batch.shape=}")
         # print(f"{output.shape=}")
-        # print(f"{targets.shape=}")
         # print(f"{one_hot_targets.shape=}")
+        # print(f"{one_hot_batch.shape=}")
+        # print(f"{targets.shape=}")
 
         current_output = output
         

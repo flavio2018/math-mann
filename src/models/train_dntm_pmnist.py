@@ -93,7 +93,8 @@ def training_step(device, model, loss_fn, opt, train_data_loader, epoch, cfg):
     epoch_loss = 0
     model.train()
     for batch_i, (mnist_images, targets) in enumerate(train_data_loader):
-        batch_size = len(mnist_images)
+        batch_size = len(mnist_images)   # mnist_images.shape is (BS, 784)
+        # print(f"{mnist_images.shape=}")
         logging.info(f"MNIST batch {batch_i}")
         model.zero_grad()
 
@@ -112,6 +113,9 @@ def training_step(device, model, loss_fn, opt, train_data_loader, epoch, cfg):
 
         _, output = model(mnist_images.T.unsqueeze(dim=-1))
         log_preds_and_targets(batch_i, output, targets)
+        # print(f"{output.T.shape=}")
+        # print(f"{targets=}")
+        # print(f"{torch.exp(output.T)=}")
 
         loss_value = loss_fn(output.T, targets)
         epoch_loss += loss_value.item() * mnist_images.size(0)
