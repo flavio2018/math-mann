@@ -75,7 +75,7 @@ def valid_step(device, model, loss_fn, valid_data_loader):
 
         mnist_images, targets = mnist_images.to(device), targets.to(device)
 
-        _, output = model(mnist_images.T.unsqueeze(dim=-1))
+        _, output = model(mnist_images)
 
         loss_value = loss_fn(output.T, targets)
         valid_epoch_loss += loss_value.item() * mnist_images.size(0)
@@ -111,7 +111,7 @@ def training_step(device, model, loss_fn, opt, train_data_loader, epoch, cfg):
 
         mnist_images, targets = mnist_images.to(device), targets.to(device)
 
-        _, output = model(mnist_images.T.unsqueeze(dim=-1))
+        _, output = model(mnist_images)
         log_preds_and_targets(batch_i, output, targets)
         # print(f"{output.T.shape=}")
         # print(f"{targets=}")
