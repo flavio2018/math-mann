@@ -22,8 +22,8 @@ def main(cfg):
     _, valid_dataloader = get_dataloaders(cfg, rng)
 
     window_size = 20  
-    read_weights_matrix = np.zeros((cfg.model.n_locations, window_size))
-    read_matrix_sequence = [read_weights_matrix]
+    weights_matrix = np.zeros((cfg.model.n_locations, window_size))
+    matrix_sequence = [weights_matrix]
 
     model.eval()
     for batch, targets in valid_dataloader:
@@ -35,28 +35,28 @@ def main(cfg):
         for i_seq in range(sequence_len):
             batch_element = batch[:, i_seq, :].reshape(feature_size, batch_size)
             controller_hidden_state, output = model.step_on_batch_element(batch_element)
-            read_weights_matrix = slide_access_weights(read_weights_matrix)
-            read_weights_matrix[:, -1] = model.memory.read_weights.squeeze().detach().cpu().numpy()
-            read_matrix_sequence.append(read_weights_matrix)            
+            weights_matrix = slide_access_weights(weights_matrix)
+            weights_matrix[:, -1] = model.memory.read_weights.squeeze().detach().cpu().numpy()
+            matrix_sequence.append(weights_matrix)            
         break
 
-    max_weigth, min_weigth = find_min_max_value(read_matrix_sequence, window_size)
+    max_weigth, min_weigth = find_min_max_value(matrix_sequence, window_size)
     print(f"Maximum weight {max_weigth}, minimum weight {min_weigth}")
 
     print("Creating the GIF image")
     fig = plt.figure()
-    sns.heatmap(read_matrix_sequence[0], vmin=min_weigth, vmax=max_weigth,
+    sns.heatmap(matrix_sequence[0], vmin=min_weigth, vmax=max_weigth,
         xticklabels=False, yticklabels=False)
 
 
     def init():
-        sns.heatmap(read_matrix_sequence[0], vmin=min_weigth, vmax=max_weigth,
+        sns.heatmap(matrix_sequence[0], vmin=min_weigth, vmax=max_weigth,
             cbar=False, xticklabels=False, yticklabels=False)
 
     def animate(i):
         start_from=0
-        sns.heatmap(read_matrix_sequence[start_from+i], vmin=min_weigth, vmax=max_weigth,
-            cbar=False, xticklabels=False, yticklabels=False)
+        sns.heatmap(matrix_sequence[start_from+i], vmin=min_weigth, vmax=max_weigth,
+            cbar=False, xticklabels=range(start_from+i,start_from+i+window_size), yticklabels=False)
         plt.gca().set_title(str(start_from+i))
 
     anim = animation.FuncAnimation(fig, animate, init_func=init, frames=50, repeat = False)
