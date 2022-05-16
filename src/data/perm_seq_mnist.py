@@ -16,7 +16,7 @@ def get_dataset(permute, seed):
         return x.astype(np.float32)
 
     def _flatten(x: np.array):
-        return x.flatten()
+        return x.reshape(784, 1)
 
     def _zero_out(x: np.array):
         return np.zeros(x.shape)

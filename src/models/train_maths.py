@@ -24,7 +24,7 @@ def train_and_test_dntm_maths(cfg):
     rng = configure_reproducibility(cfg.run.seed)
 
     cfg_dict = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
-    wandb.init(project="dntm_math", entity="flapetr")
+    wandb.init(project="dntm_math", entity="flapetr", mode=cfg.run.wandb_mode)
     wandb.run.name = cfg.run.codename
     for subconfig_name, subconfig_values in cfg_dict.items():
         if isinstance(subconfig_values, dict):
@@ -73,10 +73,10 @@ def train_step(data_loader, vocab, model, criterion, optimizer, device, text_tab
 
         hn_cn, output = model(one_hot_batch)
         # print(f"{batch.shape=}")
-        # print(f"{one_hot_batch.shape=}")
         # print(f"{output.shape=}")
-        # print(f"{targets.shape=}")
         # print(f"{one_hot_targets.shape=}")
+        # print(f"{one_hot_batch.shape=}")
+        # print(f"{targets.shape=}")
 
         current_output = output
         
