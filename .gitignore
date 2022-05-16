@@ -2,10 +2,10 @@
 models/checkpoints/
 models/trax-checkpoints/
 logs/
-conf/
 
 # virtual environment
 .math-mann/
+.venv/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
