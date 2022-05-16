@@ -1,0 +1,8 @@
+name: dntm
+n_locations: 1000
+content_size: 8
+address_size: 8
+controller_input_size: 35
+controller_output_size: 35
+controller_hidden_state_size: 100
+ckpt:
