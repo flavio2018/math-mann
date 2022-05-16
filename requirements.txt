@@ -11,10 +11,12 @@ tensorflow
 toolz
 torchmetrics
 torchtext
-torchvision==0.10
 wandb
 
-# to use the A5000 nodes a specific pytorch version needs to be installed
+# to use the A5000 nodes a specific pytorch build compliant with CUDA drivers of the GPU needs to be installed
+--extra-index-url https://download.pytorch.org/whl/cu113
+torch 
+torchvision 
 
 # local package
 -e .
