@@ -3,6 +3,7 @@ import hydra
 import wandb
 import omegaconf
 import logging
+import os
 
 import torch
 from torchmetrics.classification import Accuracy
@@ -12,6 +13,7 @@ from src.utils import configure_reproducibility
 from src.data.math_dm import get_dataloaders
 from src.models.train_dntm_utils import build_model
 from src.wandb_utils import log_weights_gradient
+from src.models.pytorchtools import EarlyStopping
 
 
 @hydra.main(config_path="../../conf", config_name="maths_slurm")
@@ -40,6 +42,11 @@ def train_and_test_dntm_maths(cfg):
 
     criterion = torch.nn.NLLLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.train.lr, betas=(0.99, 0.995), eps=1e-9)
+    early_stopping = EarlyStopping(verbose=True,
+                                   path=os.path.join(hydra.utils.get_original_cwd(),
+                                                     f"../models/checkpoints/{cfg.run.codename}.pth"),
+                                   trace_func=logging.info,
+                                   patience=cfg.train.patience)
 
     for epoch in range(cfg.train.epochs):
         train_loss, train_accuracy, cer, mer = train_step(train_dataloader, vocab, model, criterion, optimizer, device, text_table, cfg, epoch)
@@ -52,6 +59,12 @@ def train_and_test_dntm_maths(cfg):
         wandb.log({"char_error_rate_training_set": cer})
         wandb.log({"match_error_rate_training_set": mer})
         log_weights_gradient(model)
+
+        early_stopping(valid_loss, model)
+        if early_stopping.early_stop:
+            logging.info("Early stopping")
+            break
+
     wandb.log({'predictions': text_table})
 
 
