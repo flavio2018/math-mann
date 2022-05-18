@@ -3,7 +3,9 @@ import hydra
 import wandb
 import omegaconf
 import logging
+import os
 
+import numpy as np
 import torch
 from torchmetrics.classification import Accuracy
 from torchmetrics import CharErrorRate, MatchErrorRate
@@ -12,6 +14,7 @@ from src.utils import configure_reproducibility
 from src.data.math_dm import get_dataloaders
 from src.models.train_dntm_utils import build_model
 from src.wandb_utils import log_weights_gradient
+from src.models.pytorchtools import EarlyStopping
 
 
 @hydra.main(config_path="../../conf", config_name="maths_slurm")
@@ -40,6 +43,11 @@ def train_and_test_dntm_maths(cfg):
 
     criterion = torch.nn.NLLLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.train.lr, betas=(0.99, 0.995), eps=1e-9)
+    early_stopping = EarlyStopping(verbose=True,
+                                   path=os.path.join(hydra.utils.get_original_cwd(),
+                                                     f"../models/checkpoints/{cfg.run.codename}.pth"),
+                                   trace_func=logging.info,
+                                   patience=cfg.train.patience)
 
     for epoch in range(cfg.train.epochs):
         train_loss, train_accuracy, cer, mer = train_step(train_dataloader, vocab, model, criterion, optimizer, device, text_table, cfg, epoch)
@@ -52,13 +60,20 @@ def train_and_test_dntm_maths(cfg):
         wandb.log({"char_error_rate_training_set": cer})
         wandb.log({"match_error_rate_training_set": mer})
         log_weights_gradient(model)
+
+        early_stopping(valid_loss, model)
+        if early_stopping.early_stop:
+            logging.info("Early stopping")
+            break
+
     wandb.log({'predictions': text_table})
 
 
 def train_step(data_loader, vocab, model, criterion, optimizer, device, text_table, cfg, epoch):
-    train_accuracy = Accuracy().to(device)
     char_error_rate = CharErrorRate().to(device)
     match_error_rate = MatchErrorRate().to(device)
+    global_accuracy = 0
+    num_samples = 0
 
     epoch_loss = 0
     num_batches = 0
@@ -109,6 +124,9 @@ def train_step(data_loader, vocab, model, criterion, optimizer, device, text_tab
         #print(current_targets_str, current_outputs_str)
         if (epoch % 3 == 0) and (num_batches % 100 == 0):
             text_table.add_data(epoch, current_outputs_str[0], current_targets_str[0])
+        correct_in_batch, num_samples_in_batch = num_correct_in_batch(current_outputs_str, current_targets_str)
+        global_accuracy += correct_in_batch
+        num_samples += num_samples_in_batch
         char_error_rate.update(current_outputs_str, current_targets_str)
         match_error_rate.update(current_outputs_str, current_targets_str)
 
@@ -124,12 +142,11 @@ def train_step(data_loader, vocab, model, criterion, optimizer, device, text_tab
         batch_loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.train.max_grad_norm, norm_type=2.0, error_if_nonfinite=True)
         optimizer.step()
-    accuracy_over_batches = train_accuracy.compute()
+    global_accuracy /= num_samples
     cer_over_batches = char_error_rate.compute()
     mer_over_batches = match_error_rate.compute()
     epoch_loss /= num_batches
-    train_accuracy.reset()
-    return epoch_loss, accuracy_over_batches, cer_over_batches, mer_over_batches
+    return epoch_loss, global_accuracy, cer_over_batches, mer_over_batches
 
 
 def valid_step(valid_dataloader, model, criterion, device, vocab):
@@ -160,6 +177,13 @@ def valid_step(valid_dataloader, model, criterion, device, vocab):
         valid_epoch_loss += batch_loss.item() * batch_size
     valid_epoch_loss /= num_batches
     return valid_epoch_loss
+
+
+def num_correct_in_batch(batch_preds, batch_targets):
+    batch_preds, batch_targets = np.array(batch_preds), np.array(batch_targets)
+    num_correct_in_batch = (batch_preds == batch_targets).sum()
+    return num_correct_in_batch, len(batch_preds)
+
 
 if __name__ == "__main__":
     click_wrapper()
