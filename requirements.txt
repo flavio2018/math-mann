@@ -6,6 +6,7 @@ notebook
 pytest
 scipy>=1.6.0
 sklearn
+seaborn
 tensorflow_datasets
 tensorflow
 toolz

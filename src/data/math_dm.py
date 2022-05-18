@@ -39,9 +39,19 @@ class MathematicsDataset(Dataset):
 
         return samples, targets
 
-    def numpy(self):
-        return (np.array([np.array(seq) for seq in self[:][0]], dtype=object),
-                np.array([np.array(target_seq) for target_seq in self[:][1]], dtype=object))
+
+def to_numpy(ds: Dataset):
+    return (np.array([np.array(seq) for seq in ds[:][0]], dtype=object),
+            np.array([np.array(target_seq) for target_seq in ds[:][1]], dtype=object))
+
+
+def to_numpy_subset(subset_ds: torch.utils.data.dataset.Subset):
+    """The access to Subsets is different from Datasets. They internally store the original dataset
+    and the indices of the subset, then they access the original dataset using them.
+    In this function, iterating over the indices of the subset we access to the elements of the 
+    original dataset (subset_ds[idx]) which are tuples of (seq, target)."""
+    return (np.array([np.array(subset_ds[idx][0]) for idx in range(len(subset_ds))], dtype=object),
+            np.array([np.array(subset_ds[idx][1]) for idx in range(len(subset_ds))], dtype=object))
 
 
 def yield_chars(path):
@@ -58,7 +68,7 @@ def collate_fn(samples: list):
     return X, Y
 
 
-def get_dataloader(cfg):
+def get_dataloaders(cfg, rng):
     print("Problem:", cfg.data.problem_name)
 
     print("Building vocabulary...")
@@ -68,8 +78,18 @@ def get_dataloader(cfg):
     print(f"Built vocabulary with {len(vocabulary)} terms")
     ds = MathematicsDataset(cfg, transform=VocabTransform(vocabulary))
 
-    X, y = ds.numpy()
-    bucket_batch_sampler = BucketBatchSampler(X, 16)  # <-- does not store X
+    perc_valid = 0.2
+    size_train, size_valid = round(len(ds) * (1 - perc_valid)), round(len(ds) * perc_valid)
+    train_ds, valid_ds = torch.utils.data.random_split(ds, [size_train, size_valid], generator=rng)
 
-    return DataLoader(ds, batch_sampler=bucket_batch_sampler, shuffle=False,
-                      num_workers=2, drop_last=False, collate_fn=collate_fn), vocabulary
+    train_X, _ = to_numpy_subset(train_ds)
+    bucket_batch_sampler_train = BucketBatchSampler(train_X, cfg.train.batch_size)  # <-- does not store X
+    train_dataloader = DataLoader(train_ds, batch_sampler=bucket_batch_sampler_train, shuffle=False,
+                                  num_workers=1, drop_last=False, collate_fn=collate_fn)
+    
+    valid_X, _ = to_numpy_subset(valid_ds)
+    bucket_batch_sampler_valid = BucketBatchSampler(valid_X, cfg.train.batch_size)
+    valid_dataloader = DataLoader(valid_ds, batch_sampler=bucket_batch_sampler_valid, shuffle=False,
+                                  num_workers=1, drop_last=False, collate_fn=collate_fn)
+    
+    return train_dataloader, valid_dataloader, vocabulary

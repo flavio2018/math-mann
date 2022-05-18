@@ -1,8 +1,7 @@
 defaults:
-        - run: slurm
-        - model: dntm
-        - train: mnist_dntm
-        - data: mnist
+        - run: local
+        - model: dntm_mnist
+        - data: viz_weights
         - train: default
         - override hydra/hydra_logging: none
         - override hydra/job_logging: custom
