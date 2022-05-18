@@ -44,8 +44,8 @@ def train_and_test_dntm_maths(cfg):
     criterion = torch.nn.NLLLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.train.lr, betas=(0.99, 0.995), eps=1e-9)
     early_stopping = EarlyStopping(verbose=True,
-                                   path=os.path.join(hydra.utils.get_original_cwd(),
-                                                     f"../models/checkpoints/{cfg.run.codename}.pth"),
+                                   path=os.path.join(os.getcwd(),
+                                                     f"{cfg.run.codename}.pth"),
                                    trace_func=logging.info,
                                    patience=cfg.train.patience)
 
@@ -112,7 +112,6 @@ def train_step(data_loader, vocab, model, criterion, optimizer, device, text_tab
             new_input = target_seq_el_1hot.unsqueeze(dim=1)
             hn_cn, current_output = model(new_input)
             batch_loss += criterion(current_output.T, target_seq_el)
-            train_accuracy.update(current_output.T, target_seq_el)
             
             for output_i, output in enumerate(current_output.T):
                 current_outputs_str[output_i] += vocab.lookup_token(output.argmax())
