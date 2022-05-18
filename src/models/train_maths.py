@@ -9,7 +9,7 @@ from torchmetrics.classification import Accuracy
 from torchmetrics import CharErrorRate, MatchErrorRate
 
 from src.utils import configure_reproducibility
-from src.data.math_dm import get_dataloader
+from src.data.math_dm import get_dataloaders
 from src.models.train_dntm_utils import build_model
 from src.wandb_utils import log_weights_gradient
 
@@ -34,17 +34,18 @@ def train_and_test_dntm_maths(cfg):
 
     text_table = wandb.Table(columns=["epoch", "prediction", "target"])
 
-    data_loader, vocab = get_dataloader(cfg)
+    train_dataloader, valid_dataloader, vocab = get_dataloaders(cfg, rng)
+
     model = build_model(cfg.model, device)
 
     criterion = torch.nn.NLLLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=6e-4, betas=(0.99, 0.995), eps=1e-9)
 
     for epoch in range(cfg.train.epochs):
-        train_loss, train_accuracy, cer, mer = train_step(data_loader, vocab, model, criterion, optimizer, device, text_table, cfg, epoch)
+        train_loss, train_accuracy, cer, mer = train_step(train_dataloader, vocab, model, criterion, optimizer, device, text_table, cfg, epoch)
         print(f"Epoch {epoch} --- train loss: {train_loss} - train acc: {train_accuracy}")
 
-        # valid_step(data_loader)
+        # valid_step(valid_dataloader)
         wandb.log({'loss_training_set': train_loss})
         wandb.log({'acc_training_set': train_accuracy})
         wandb.log({"char_error_rate_training_set": cer})
@@ -129,7 +130,7 @@ def train_step(data_loader, vocab, model, criterion, optimizer, device, text_tab
     return epoch_loss, accuracy_over_batches, cer_over_batches, mer_over_batches
 
 
-def valid_step(data_loader):
+def valid_step(valid_dataloader):
     return
 
 
