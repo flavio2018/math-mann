@@ -14,7 +14,7 @@ from src.models.train_dntm_utils import build_model
 from src.wandb_utils import log_weights_gradient
 
 
-@hydra.main(config_path="../../conf", config_name="maths")
+@hydra.main(config_path="../../conf", config_name="maths_slurm")
 def click_wrapper(cfg):
     train_and_test_dntm_maths(cfg)
 
