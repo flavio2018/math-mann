@@ -44,19 +44,21 @@ def train_and_test_dntm_maths(cfg):
     criterion = torch.nn.NLLLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.train.lr, betas=(0.99, 0.995), eps=1e-9)
     early_stopping = EarlyStopping(verbose=True,
-                                   path=os.path.join(hydra.utils.get_original_cwd(),
-                                                     f"../models/checkpoints/{cfg.run.codename}.pth"),
+                                   path=os.path.join(os.getcwd(),
+                                                     f"{cfg.run.codename}.pth"),
                                    trace_func=logging.info,
                                    patience=cfg.train.patience)
 
     for epoch in range(cfg.train.epochs):
         train_loss, train_accuracy, cer, mer = train_step(train_dataloader, vocab, model, criterion, optimizer, device, text_table, cfg, epoch)
-        valid_loss = valid_step(valid_dataloader, model, criterion, device, vocab)
+        valid_loss, valid_accuracy = valid_step(valid_dataloader, model, criterion, device, vocab)
 
-        print(f"Epoch {epoch} --- train loss: {train_loss} - train acc: {train_accuracy} - valid loss: {valid_loss}")
+        print(f"Epoch {epoch} --- train loss: {train_loss} - train acc: {train_accuracy} - "
+              f"valid loss: {valid_loss} - valid acc: {valid_accuracy}")
         wandb.log({'loss_training_set': train_loss})
         wandb.log({'loss_validation_set': valid_loss})
         wandb.log({'acc_training_set': train_accuracy})
+        wandb.log({'acc_validation_set': valid_accuracy})
         wandb.log({"char_error_rate_training_set": cer})
         wandb.log({"match_error_rate_training_set": mer})
         log_weights_gradient(model)
@@ -99,8 +101,7 @@ def train_step(data_loader, vocab, model, criterion, optimizer, device, text_tab
         current_output = output
         
         current_outputs_str = []
-        for output_i, output in enumerate(current_output.T):
-           current_outputs_str.append(vocab.lookup_token(output.argmax()))
+        current_outputs_str = update_outputs_str(current_outputs_str, current_output, vocab)
         
         batch_loss = criterion(current_output.T, targets[:, 0].type(torch.int64))
         # print("generating output")
@@ -112,10 +113,7 @@ def train_step(data_loader, vocab, model, criterion, optimizer, device, text_tab
             new_input = target_seq_el_1hot.unsqueeze(dim=1)
             hn_cn, current_output = model(new_input)
             batch_loss += criterion(current_output.T, target_seq_el)
-            train_accuracy.update(current_output.T, target_seq_el)
-            
-            for output_i, output in enumerate(current_output.T):
-                current_outputs_str[output_i] += vocab.lookup_token(output.argmax())
+            current_outputs_str = update_outputs_str(current_outputs_str, current_output, vocab)
     
         current_targets_str = []
         for target in targets:
@@ -151,6 +149,8 @@ def train_step(data_loader, vocab, model, criterion, optimizer, device, text_tab
 
 def valid_step(valid_dataloader, model, criterion, device, vocab):
     valid_epoch_loss = 0
+    global_accuracy = 0
+    num_samples = 0
 
     model.eval()
     num_batches = 0
@@ -166,17 +166,38 @@ def valid_step(valid_dataloader, model, criterion, device, vocab):
         hn_cn, output = model(one_hot_batch)
 
         current_output = output
+        current_outputs_str = []
+        current_outputs_str = update_outputs_str(current_outputs_str, current_output, vocab)
+        
         batch_loss = criterion(current_output.T, targets[:, 0].type(torch.int64))
-
         for target_seq_pos in range(1, target_seq_len):
             target_seq_el = targets[:, target_seq_pos].type(torch.int64)  # target_seq_el.shape = (bs, 1)
             target_seq_el_1hot = one_hot_targets[:, target_seq_pos, :]
             new_input = target_seq_el_1hot.unsqueeze(dim=1)
             hn_cn, current_output = model(new_input)
             batch_loss += criterion(current_output.T, target_seq_el)
+            current_outputs_str = update_outputs_str(current_outputs_str, current_output, vocab)
+
+        current_targets_str = []
+        for target in targets:
+            current_targets_str.append(''.join([vocab.lookup_token(t) for t in target]))
         valid_epoch_loss += batch_loss.item() * batch_size
+        correct_in_batch, num_samples_in_batch = num_correct_in_batch(current_outputs_str, current_targets_str)
+        global_accuracy += correct_in_batch
+        num_samples += num_samples_in_batch
+    global_accuracy /= num_samples
     valid_epoch_loss /= num_batches
-    return valid_epoch_loss
+    return valid_epoch_loss, global_accuracy
+
+
+def update_outputs_str(outputs_str, current_output, vocab):
+    if len(outputs_str) == 0:
+        for output in current_output.T:
+            outputs_str.append(vocab.lookup_token(output.argmax()))
+    else:
+        for output_i, output in enumerate(current_output.T):
+            outputs_str[output_i] += vocab.lookup_token(output.argmax())
+    return outputs_str
 
 
 def num_correct_in_batch(batch_preds, batch_targets):
