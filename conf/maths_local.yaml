@@ -1,5 +1,5 @@
 defaults:
-        - run: slurm
+        - run: local
         - data: maths
         - model: rnn
         - train: math_rnn
