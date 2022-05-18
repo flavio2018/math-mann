@@ -1,0 +1,13 @@
+defaults:
+        - run: slurm
+        - model: dntm
+        - data: mnist
+        - train: mnist_rnn
+        - override hydra/hydra_logging: none
+        - override hydra/job_logging: custom
+        - _self_
+
+hydra:
+  run:
+    dir: ../hydra/${hydra.job.name}/${now:%Y-%B-%d_%H-%M-%S}
+
