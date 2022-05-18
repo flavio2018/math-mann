@@ -1,4 +1,8 @@
 hydra-core
+ipython
+ipykernel
+ipywidgets
+notebook
 torchtext==0.12
 torchmetrics
 wandb
