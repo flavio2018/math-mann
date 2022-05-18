@@ -72,4 +72,4 @@ def get_dataloader(cfg):
     bucket_batch_sampler = BucketBatchSampler(X, 16)  # <-- does not store X
 
     return DataLoader(ds, batch_sampler=bucket_batch_sampler, shuffle=False,
-                      num_workers=2, drop_last=False, collate_fn=collate_fn), vocabulary
+                      num_workers=1, drop_last=False, collate_fn=collate_fn), vocabulary
