@@ -40,8 +40,8 @@ def train_and_test_dntm_smnist(cfg):
     loss_fn = torch.nn.NLLLoss()
     opt = get_optimizer(model, cfg)
     early_stopping = EarlyStopping(verbose=True,
-                                   path=os.path.join(hydra.utils.get_original_cwd(),
-                                                     f"../models/checkpoints/{cfg.run.codename}.pth"),
+                                   path=os.path.join(os.getcwd(),
+                                                     f"{cfg.run.codename}.pth"),
                                    trace_func=logging.info,
                                    patience=cfg.train.patience)
 
