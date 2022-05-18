@@ -3,6 +3,11 @@ torchtext==0.12
 torchmetrics
 wandb
 
+
+# to use the A5000 nodes a specific pytorch build compliant with CUDA drivers of the GPU needs to be installed
+--extra-index-url https://download.pytorch.org/whl/cu113
+torch 
+
 # local package
 -e .
 
