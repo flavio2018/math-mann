@@ -1,0 +1,5 @@
+loglevel: INFO
+project_path: "/media/shift97/My Passport/Flavio/repos/math-mann"
+codename: default_local
+seed: 2147483647
+wandb_mode: online
