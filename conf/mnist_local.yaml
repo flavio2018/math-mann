@@ -1,6 +1,6 @@
 defaults:
         - run: local
-        - model: dntm
+        - model: dntm_mnist
         - data: mnist
         - train: mnist_rnn
         - override hydra/hydra_logging: none

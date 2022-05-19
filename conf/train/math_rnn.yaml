@@ -3,3 +3,4 @@ batch_size: 128
 epochs: 100
 max_grad_norm: 0.1
 patience: 10
+perc_valid: 0.1
