@@ -81,7 +81,7 @@ def get_dataloaders(cfg, rng):
 
     perc_valid = cfg.train.perc_valid
     size_train, size_valid = round(len(ds) * (1 - perc_valid)), round(len(ds) * perc_valid)
-    logging.INFO(f"Splitting dataset into training set with {size_train} elements and validation set with {size_valid} elements.")
+    logging.info(f"Splitting dataset into training set with {size_train} elements and validation set with {size_valid} elements.")
     train_ds, valid_ds = torch.utils.data.random_split(ds, [size_train, size_valid], generator=rng)
 
     train_X, _ = to_numpy_subset(train_ds)
