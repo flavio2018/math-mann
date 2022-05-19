@@ -1,5 +1,6 @@
 lr: 0.001
 batch_size: 64
-epochs: 1000
+epochs: 200
 patience: 10
-max_grad_norm: 100
+max_grad_norm: 0.1
+optimizer: adam
