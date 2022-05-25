@@ -66,7 +66,9 @@ def collate_fn(samples: list):
     X, Y = zip(*samples)
     X = torch.nn.utils.rnn.pad_sequence([torch.Tensor(x) for x in X], batch_first=True)
     Y = torch.nn.utils.rnn.pad_sequence([torch.Tensor(y) for y in Y], batch_first=True)
-    return X, Y
+    masks_X = (X != 0)
+    masks_Y = (Y != 0)
+    return X, Y, (masks_X, masks_Y)
 
 
 def get_dataloaders(cfg, rng):
@@ -75,7 +77,8 @@ def get_dataloaders(cfg, rng):
     print("Building vocabulary...")
     vocabulary = build_vocab_from_iterator(
         yield_chars(os.path.join(hydra.utils.get_original_cwd(),
-                                 f"../data/external/mathematics_dataset-v1.0/train-{cfg.data.problem_difficulty}/{cfg.data.problem_name}.txt")))
+                                 f"../data/external/mathematics_dataset-v1.0/train-{cfg.data.problem_difficulty}/{cfg.data.problem_name}.txt")),
+                                 specials=['<pad>'])
     print(f"Built vocabulary with {len(vocabulary)} terms")
     ds = MathematicsDataset(cfg, transform=VocabTransform(vocabulary))
 
