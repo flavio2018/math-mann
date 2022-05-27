@@ -1,8 +1,8 @@
 name: dntm
-n_locations: 10
+n_locations: 1000
 content_size: 8
 address_size: 8
 controller_input_size: 1
 controller_output_size: 10
 controller_hidden_state_size: 100
-ckpt: # "${run.project_path}/models/checkpoints/dntm_full.pth"
+ckpt: "${run.project_path}/models/checkpoints/dntm_full.pth"

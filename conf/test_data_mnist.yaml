@@ -1,0 +1,14 @@
+defaults:
+        - run: local
+        - data: mnist
+        - override hydra/hydra_logging: none
+        - override hydra/job_logging: custom
+        - _self_
+
+train:
+        batch_size: 16
+
+hydra:
+  run:
+    dir: ../hydra/${hydra.job.name}/${now:%Y-%B-%d_%H-%M-%S}
+

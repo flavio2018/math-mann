@@ -1,0 +1,26 @@
+defaults:
+        - run: local
+        - data: mnist
+        - override hydra/hydra_logging: none
+        - override hydra/job_logging: custom
+        - _self_
+
+train:
+        batch_size: 4
+        perc_valid: 0.1
+
+model:
+        name: dntm
+        n_locations: 1000
+        content_size: 8
+        address_size: 8
+        controller_input_size: 1
+        controller_output_size: 10
+        controller_hidden_state_size: 100
+        ckpt: "${run.project_path}/models/checkpoints/dntm_full_20-May-2022.pth"
+
+
+hydra:
+  run:
+    dir: ../hydra/${hydra.job.name}/${now:%Y-%B-%d_%H-%M-%S}
+
