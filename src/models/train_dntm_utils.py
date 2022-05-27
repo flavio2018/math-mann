@@ -112,41 +112,48 @@ def build_rnn(model_conf, device):
 
 
 class CustomLSTM(torch.nn.Module):
-    def __init__(self, input_size, hidden_size, proj_size, batch_first):
+    def __init__(self, input_size, hidden_size, proj_size):
         super().__init__()
-        self.lstm = torch.nn.LSTM(input_size=input_size,
-                                  hidden_size=hidden_size,
-                                  proj_size=proj_size)
-        self.batch_first = batch_first
+        self.lstm = torch.nn.LSTMCell(input_size=input_size,
+                                      hidden_size=hidden_size)
+        self.linear = torch.nn.Linear(in_features=hidden_size,
+                                      out_features=proj_size)
+        self.register_buffer("hidden_states", torch.zeros(1, hidden_size))
+        self.register_buffer("cell_states", torch.zeros(1, hidden_size))
+        self.hidden_size = hidden_size
 
     def forward(self, batch):
-        full_output, h_n_c_n = self.lstm(batch)
-        # select only the output for the last timestep and reshape to 2D
-        if self.batch_first:
-            last_output = full_output[:, -1, :].T
-        else:
-            last_output = full_output[-1, :, :].T
+        batch_size, sequence_len, feature_size = batch.shape
+        all_outputs = []
+        all_hidden_states = []
+        all_cell_states = []
 
-        log_soft_output = torch.nn.functional.log_softmax(last_output, dim=0)
-
-        # print(f"{batch.shape=}")  # (784, bs, 1)
-        # print(get_digit_string_repr(batch[:, 0, :]))
-        # print(f"{full_output.shape=}")
-        # print(f"{last_output.shape=}")
-        # print(f"{log_soft_output.shape=}")
-        # print()
-
-        return h_n_c_n, log_soft_output
+        for seq_pos in range(sequence_len):
+            self.hidden_states, self.cell_states = self.lstm(batch[:, seq_pos, :].reshape(batch_size, feature_size),
+                                                             (self.hidden_states, self.cell_states))
+            o_n = torch.nn.functional.log_softmax(self.linear(self.hidden_states), dim=0)
+            all_hidden_states.append(self.hidden_states)
+            all_cell_states.append(self.cell_states)
+            all_outputs.append(o_n.T)
+        return (torch.stack(all_hidden_states), torch.stack(all_cell_states)), torch.stack(all_outputs)
 
     def prepare_for_batch(self, batch, device):
-        return
+        batch_size, sequence_len, feature_size = batch.shape
+        self.register_buffer("hidden_states", torch.zeros(batch_size, self.hidden_size, device=device))
+        self.register_buffer("cell_states", torch.zeros(batch_size, self.hidden_size, device=device))
+
+    def set_hidden_state(self, hn_cn, input_sequences_lengths, batch_size):
+        hidden_states, cell_states = hn_cn
+        self.hidden_states = torch.stack([hidden_states[l-1,b,:] for l, b in zip(input_sequences_lengths, range(batch_size))])
+        self.cell_states = torch.stack([cell_states[l-1,b,:] for l, b in zip(input_sequences_lengths, range(batch_size))])
+        return self.hidden_states
+
 
 
 def build_lstm(model_conf, device):
     return CustomLSTM(input_size=model_conf.input_size,
                       hidden_size=model_conf.hidden_size,
-                      proj_size=model_conf.output_size,
-                      batch_first=model_conf.batch_first).to(device)
+                      proj_size=model_conf.output_size).to(device)
 
 
 class CustomMLP(torch.nn.Module):
