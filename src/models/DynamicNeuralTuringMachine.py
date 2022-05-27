@@ -38,13 +38,19 @@ class DynamicNeuralTuringMachine(nn.Module):
         is the batch size, the second one is the sequence length and the third one is the feature size."""
         logging.debug(f"Looping through image pixels")
         batch_size, seq_len, feature_size = batch.shape
+        hidden_states = []
+        outputs = []
         
         for i_seq in range(seq_len):
             logging.debug(f"Seq. el. {i_seq}")
+            logging.debug(f"{batch[:, i_seq, :]=}")
+            logging.debug(f"{batch[:, i_seq, :].T=}")
             batch_element = batch[:, i_seq, :].reshape(feature_size, batch_size)
-            logging.debug(f"{batch_element.shape=}")
+            logging.debug(f"{batch_element=}")
             controller_hidden_state, output = self.step_on_batch_element(batch_element)
-        return controller_hidden_state, output
+            hidden_states.append(controller_hidden_state)
+            outputs.append(output)
+        return torch.stack(hidden_states), torch.stack(outputs)
 
     def step_on_batch_element(self, x):
         with torch.no_grad():
@@ -90,6 +96,14 @@ class DynamicNeuralTuringMachine(nn.Module):
             controller_hidden_state_size = self.W_output.shape[1]
         self.register_buffer("controller_hidden_state", torch.zeros(size=(controller_hidden_state_size, batch_size)))
         self.controller_hidden_state = self.controller_hidden_state.to(device)
+
+    def set_hidden_state(self, hidden_states, input_sequences_lengths, batch_size):
+        """Use this to handle the case of diffenent-lengths sequences in a batch when you need
+        to re-initialize the hidden state to the value it had at the end of the processing of the
+        true sequence, excluding padding."""
+        hidden_state = torch.stack([hidden_states[l-1,:,b] for l, b in zip(input_sequences_lengths, range(batch_size))])
+        self.controller_hidden_state = hidden_state.T.detach()
+        return hidden_state
 
 
 class CustomGRU(nn.Module):
