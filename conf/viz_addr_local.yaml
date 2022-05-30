@@ -1,11 +1,20 @@
 defaults:
         - run: local
-        - model: dntm_mnist
         - data: viz_weights
         - train: default
         - override hydra/hydra_logging: none
         - override hydra/job_logging: custom
         - _self_
+
+model:
+        name: dntm
+        n_locations: 1000
+        content_size: 8
+        address_size: 8
+        controller_input_size: 1
+        controller_output_size: 10
+        controller_hidden_state_size: 100
+        ckpt: "${run.project_path}/models/checkpoints/dntm_mnist_trained.pth"
 
 hydra:
   run:

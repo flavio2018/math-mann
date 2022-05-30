@@ -65,7 +65,7 @@ def main(cfg):
             write_weights_full[:, -1] = model.memory.write_weights.squeeze().detach().cpu().numpy()
 
         target = targets.item()
-        prediction = output.argmax(dim=0)
+        prediction = output.argmax(dim=0).item()
         text_table.add_data(prediction, target)
         break
 
