@@ -111,7 +111,8 @@ def training_step(device, model, loss_fn, opt, train_data_loader, epoch, cfg):
 
         mnist_images, targets = mnist_images.to(device), targets.to(device)
 
-        _, output = model(mnist_images)
+        _, outputs = model(mnist_images)
+        output = outputs[-1, :, :]
         log_preds_and_targets(batch_i, output, targets)
         # print(f"{output.T.shape=}")
         # print(f"{targets=}")
