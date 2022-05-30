@@ -2,7 +2,7 @@
 models/checkpoints/
 models/trax-checkpoints/
 logs/
-hydra/
+/hydra/
 
 # virtual environment
 .math-mann/
