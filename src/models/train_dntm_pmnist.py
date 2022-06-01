@@ -75,8 +75,9 @@ def valid_step(device, model, loss_fn, valid_data_loader):
 
         mnist_images, targets = mnist_images.to(device), targets.to(device)
 
-        _, output = model(mnist_images)
-
+        _, outputs = model(mnist_images)
+        output = outputs[-1, :, :]
+        
         loss_value = loss_fn(output.T, targets)
         valid_epoch_loss += loss_value.item() * mnist_images.size(0)
 
