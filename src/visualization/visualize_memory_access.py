@@ -43,31 +43,35 @@ def main(cfg):
     write_matrix_sequence = [write_weights_matrix]
     
     model.eval()
+    num_batch = 0
     for batch, targets in valid_dataloader:
-        batch_size, sequence_len, feature_size = batch.shape
-        model.prepare_for_batch(batch, device)
-        batch, targets = batch.to(device), targets.to(device)
+        if num_batch < cfg.data.skip_n_batches:
+            num_batch += 1
+        else:
+            batch_size, sequence_len, feature_size = batch.shape
+            model.prepare_for_batch(batch, device)
+            batch, targets = batch.to(device), targets.to(device)
 
-        print("Scanning one sequence")
-        for i_seq in range(sequence_len):
-            batch_element = batch[:, i_seq, :].reshape(feature_size, batch_size)
-            controller_hidden_state, output = model.step_on_batch_element(batch_element)
-            read_weights_matrix = slide_access_weights(read_weights_matrix)
-            write_weights_matrix = slide_access_weights(write_weights_matrix)
-            read_weights_matrix[:, -1] = model.memory.read_weights.squeeze().detach().cpu().numpy()
-            write_weights_matrix[:, -1] = model.memory.write_weights.squeeze().detach().cpu().numpy()
-            read_matrix_sequence.append(read_weights_matrix)
-            write_matrix_sequence.append(write_weights_matrix)
+            print("Scanning one sequence")
+            for i_seq in range(sequence_len):
+                batch_element = batch[:, i_seq, :].reshape(feature_size, batch_size)
+                controller_hidden_state, output = model.step_on_batch_element(batch_element)
+                read_weights_matrix = slide_access_weights(read_weights_matrix)
+                write_weights_matrix = slide_access_weights(write_weights_matrix)
+                read_weights_matrix[:, -1] = model.memory.read_weights.squeeze().detach().cpu().numpy()
+                write_weights_matrix[:, -1] = model.memory.write_weights.squeeze().detach().cpu().numpy()
+                read_matrix_sequence.append(read_weights_matrix)
+                write_matrix_sequence.append(write_weights_matrix)
 
-            read_weights_full = slide_access_weights(read_weights_full)
-            write_weights_full = slide_access_weights(write_weights_full)
-            read_weights_full[:, -1] = model.memory.read_weights.squeeze().detach().cpu().numpy()
-            write_weights_full[:, -1] = model.memory.write_weights.squeeze().detach().cpu().numpy()
+                read_weights_full = slide_access_weights(read_weights_full)
+                write_weights_full = slide_access_weights(write_weights_full)
+                read_weights_full[:, -1] = model.memory.read_weights.squeeze().detach().cpu().numpy()
+                write_weights_full[:, -1] = model.memory.write_weights.squeeze().detach().cpu().numpy()
 
-        target = targets.item()
-        prediction = output.argmax(dim=0).item()
-        text_table.add_data(prediction, target)
-        break
+            target = targets.item()
+            prediction = output.argmax(dim=0).item()
+            text_table.add_data(prediction, target)
+            break
 
     wandb.log({'predictions': text_table})
     save_heatmap(read_weights_full, read=True)
